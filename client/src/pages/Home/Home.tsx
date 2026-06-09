@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "../../api/axios";
 
 type ApiResponse = {
   message: string;
@@ -9,7 +9,7 @@ function Home() {
   const [message, setMessage] = useState<string>("Loading...");
 
   useEffect(() => {
-    axios
+    api
       .get<ApiResponse>("http://localhost:5000/")
       .then((res) => setMessage(res.data.message))
       .catch((err) => {

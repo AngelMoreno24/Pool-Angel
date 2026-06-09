@@ -57,3 +57,17 @@ Tech Stack:
     ├── types/
     │   ├── Pool.ts
     │   └── Customer.ts
+
+
+
+
+### API call flow
+    Component
+        ↓
+    Service
+        ↓
+    Axios Instance
+        ↓
+    Express API
+        ↓
+    Database
