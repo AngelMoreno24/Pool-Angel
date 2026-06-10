@@ -1,0 +1,111 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+enum UserRole {
+  OWNER
+  TECH
+}
+
+model User {
+  id         String   @id @default(uuid())
+  authId     String   @unique
+  email      String   @unique
+  firstName  String?
+  lastName   String?
+  role       UserRole @default(OWNER)
+
+  companies  Company[] @relation("CompanyOwner")
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Company {
+  id         String @id @default(uuid())
+
+  ownerId    String
+  owner      User @relation("CompanyOwner", fields: [ownerId], references: [id])
+
+  name       String
+
+  customers  Customer[]
+  properties Property[]
+  pools      Pool[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Customer {
+  id         String @id @default(uuid())
+
+  companyId  String
+  company    Company @relation(fields: [companyId], references: [id])
+
+  firstName  String
+  lastName   String?
+  phone      String?
+  email      String?
+
+  properties Property[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([companyId])
+  @@unique([companyId, email])
+}
+
+model Property {
+  id          String @id @default(uuid())
+
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+
+  address     String
+  city        String?
+  state       String?
+  zip         String?
+
+  pool        Pool?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@unique([companyId, address])
+}
+
+model Pool {
+  id          String @id @default(uuid())
+
+  propertyId  String   @unique
+  property    Property @relation(fields: [propertyId], references: [id])
+
+  companyId   String
+  company     Company @relation(fields: [companyId], references: [id])
+
+  type        String?
+  size        String?
+  notes       String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
