@@ -5,10 +5,7 @@ export const getCustomers = async () => {
   return response.data;
 };
 
-export const createCustomer = async (customer: {
-  name: string;
-  email: string;
-}) => {
+export const createCustomer = async (customer) => {
   const response = await api.post("/customers", customer);
   return response.data;
 };
