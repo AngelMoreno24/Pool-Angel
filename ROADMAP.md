@@ -79,9 +79,9 @@ The initial MVP focuses on customer and pool management before expanding into sc
 
 ### Create Supabase Database
 
-* [ ] Create new Supabase project
-* [ ] Configure DATABASE_URL
-* [ ] Install Prisma
+* [x] Create new Supabase project
+* [x] Configure DATABASE_URL
+* [x] Install Prisma
 
 ```bash
 npm install prisma @prisma/client
@@ -95,11 +95,11 @@ npx prisma init
 
 ### Initial Schema
 
-* [ ] User
-* [ ] Company
-* [ ] Customer
-* [ ] Property
-* [ ] Pool
+* [x] User
+* [x] Company
+* [x] Customer
+* [x] Property
+* [x] Pool
 
 Generate migration:
 
