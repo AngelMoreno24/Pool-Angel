@@ -1,4 +1,4 @@
-import express, { Request, Response } from "express";
+import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -15,7 +15,7 @@ app.use(
 
 app.use(express.json());
 
-app.get("/", (req: Request, res: Response) => {
+app.get("/", (req, res) => {
   res.json({ message: "API running" });
 });
 
