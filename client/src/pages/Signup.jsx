@@ -36,7 +36,7 @@ const Signup = () => {
   return (
     <div>
         <form className="max-w-md m-auto pt-24" onSubmit={handleSignup}>
-            <h2 className="font-bold pb-2">Signup</h2>
+            <h2 className="font-bold pb-2">Sign up</h2>
             <p>
                 Already have an account? <Link to="/signin">Sign in</Link>
             </p>
