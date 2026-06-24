@@ -2,6 +2,7 @@ import React, {useState} from 'react'
 import { Link } from 'react-router-dom'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 const Signin = () => {
 
@@ -21,6 +22,18 @@ const Signin = () => {
         try {
             const result = await signInUser(email, password);
             if (result?.success) {
+                console.log("Sign-in successful:asdasd", result);
+                console.log("token thing:", result.data.session.access_token);
+                await api.post(
+                    "/auth/sync",
+                {},
+                {
+                    headers: {
+                    Authorization: `Bearer ${result.data.session.access_token}`,
+                    },
+                }
+                );
+
                 navigate('/dashboard');
             } else {
                 setError(result?.error?.message || 'Unable to sign in');

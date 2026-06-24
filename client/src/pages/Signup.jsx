@@ -2,6 +2,7 @@ import React, {useState} from 'react'
 import { Link } from 'react-router-dom'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import api from '../api/axios';
 
 const Signup = () => {
 
@@ -21,6 +22,18 @@ const Signup = () => {
         try {
             const result = await signUpNewUser(email, password);
             if (result?.success) {
+                  //const response = await api.get("/customers");
+                
+                await api.post(
+                    "/auth/sync",
+                {},
+                {
+                    headers: {
+                    Authorization: `Bearer ${result.session.access_token}`,
+                    },
+                }
+                );
+
                 navigate('/dashboard');
             } else {
                 setError(result?.error?.message || 'Unable to sign up');
