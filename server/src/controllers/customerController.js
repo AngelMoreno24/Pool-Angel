@@ -141,3 +141,43 @@ export const updateCustomer = async (req, res) => {
     }
 
 }
+
+
+
+export const deleteCustomer = async (req, res) => {
+
+    try {
+
+        const { customerId } = req.params;
+        const { companyId, role } = req.user;
+
+        if (!companyId || role !== "OWNER") {
+            return res.status(403).json({ error: "Forbidden" });
+        }
+
+        if (!customerId) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+
+        const result = await prisma.customer.deleteMany({
+            where: {
+                id: customerId,
+                companyId,
+            },
+        });
+
+        if (result.count === 0) {
+            return res.status(404).json({
+                error: "Customer not found",
+            });
+        }
+
+
+        return res.status(200).json({  message: "Customer deleted successfully" });
+    }catch (error) { 
+        console.error(error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+
+}
