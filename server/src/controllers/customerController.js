@@ -16,7 +16,7 @@ export const createCustomer = async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
     
-        const user = await prisma.user.create({
+        const customer = await prisma.customer.create({
         data: {
             firstName,
             lastName,
@@ -25,7 +25,7 @@ export const createCustomer = async (req, res) => {
         },
         });
 
-        return res.status(201).json(user);
+        return res.status(201).json(customer);
     }catch (error) { 
         console.error(error);
         return res.status(500).json({ error: "Internal server error" });
@@ -48,13 +48,13 @@ export const getCustomers = async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
     
-        const user = await prisma.user.findMany({
+        const customers = await prisma.customer.findMany({
             where: 
                 { companyId: companyId
             },
         });
 
-        return res.status(201).json(user);
+        return res.status(200).json(customers);
     }catch (error) { 
         console.error(error);
         return res.status(500).json({ error: "Internal server error" });
@@ -79,13 +79,62 @@ export const getCustomer = async (req, res) => {
             return res.status(400).json({ error: "Missing required fields" });
         }
     
-        const user = await prisma.user.findUnique({
+        const customer = await prisma.customer.findUnique({
             where: 
-                { id: customerId
+                { 
+                    id: customerId
                 },
         });
 
-        return res.status(201).json(user);
+        return res.status(200).json(customer);
+    }catch (error) { 
+        console.error(error);
+        return res.status(500).json({ error: "Internal server error" });
+    }
+
+}
+
+
+export const updateCustomer = async (req, res) => {
+
+    try {
+
+        const { customerId } = req.params;
+
+        const { firstName, lastName, email, phone } = req.body;
+
+        const { companyId, role } = req.user;
+
+        if (!companyId || role !== "OWNER") {
+            return res.status(403).json({ error: "Forbidden" });
+        }
+
+        if (!customerId) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+
+        const result = await prisma.customer.updateMany({
+            where: {
+                id: customerId,
+                companyId,
+            },
+            data: {
+                firstName,
+                lastName,
+                email,
+                phone,
+            },
+        });
+
+        if (result.count === 0) {
+            return res.status(404).json({
+                error: "Customer not found",
+            });
+        }
+
+
+        return res.status(200).json({  message: "Customer updated successfully" });
     }catch (error) { 
         console.error(error);
         return res.status(500).json({ error: "Internal server error" });
