@@ -5,8 +5,8 @@ import { supabase } from "../supabaseClient";
 const AuthContext = createContext();
 
 export const AuthContextProvider = ({ children }) => {
-  const [ session, setSession ] = useState(undefined);
-
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
   
 
   // Sign up
@@ -54,21 +54,30 @@ export const AuthContextProvider = ({ children }) => {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      setLoading(false);
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setLoading(false);
+      }
+    );
 
+    return () => listener.subscription.unsubscribe();
   }, []);
  
   // Sign out 
-  const signOut = () => {
-    const { error } = supabase.auth.signOut();
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+
     if (error) {
-      console.error("Error signing out:", error);
+      console.error(error);
+      return;
     }
-  }
+
+    setSession(null);
+  };
 
   return (
     <AuthContext.Provider value={{ session, signUpNewUser, signOut, signInUser }}>
