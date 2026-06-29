@@ -44,10 +44,6 @@ export const getCustomers = async (req, res) => {
             return res.status(403).json({ error: "Forbidden" });
         }
 
-        if (!firstName) {
-            return res.status(400).json({ error: "Missing required fields" });
-        }
-    
         const customers = await prisma.customer.findMany({
             where: 
                 { companyId: companyId
