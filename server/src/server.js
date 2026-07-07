@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import authRoutes from "./routes/authRoutes.js";
 import customerRoutes from "./routes/customerRoutes.js";
 import propertyRoutes from "./routes/propertyRoutes.js";
+import poolRoutes from "./routes/poolRoutes.js";
 
 dotenv.config();
 
