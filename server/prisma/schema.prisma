@@ -4,8 +4,7 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -31,7 +30,7 @@ model User {
   role       UserRole @default(OWNER)
 
   companyId  String?
-  company    Company? @relation(fields: [companyId], references: [id])
+  company Company? @relation("CompanyMembers", fields: [companyId], references: [id])
 
   ownedCompany Company? @relation("CompanyOwner")
 
@@ -45,7 +44,7 @@ model Company {
   ownerId String @unique
   owner User @relation("CompanyOwner", fields: [ownerId], references: [id])
 
-  users User[]
+  users User[] @relation("CompanyMembers")
 
   name String
 

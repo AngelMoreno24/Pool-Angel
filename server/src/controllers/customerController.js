@@ -36,10 +36,11 @@ export const createCustomer = async (req, res) => {
 export const getCustomers = async (req, res) => {
 
     try {
+        console.log("getCustomers controller called");
 
+        const { companyId, role } = await req.user;
 
-        const { companyId, role } = req.user;
-
+        console.log("User info:", companyId, role);
         if (!companyId || role !== "OWNER") {
             return res.status(403).json({ error: "Forbidden" });
         }
@@ -49,10 +50,11 @@ export const getCustomers = async (req, res) => {
                 { companyId: companyId
             },
         });
-
+        console.log("Retrieved customers:", customers);
         return res.status(200).json(customers);
     }catch (error) { 
         console.error(error);
+        console.log("Error in getCustomers:", error);
         return res.status(500).json({ error: "Internal server error" });
     }
 

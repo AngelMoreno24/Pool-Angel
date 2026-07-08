@@ -1,10 +1,10 @@
 import express from "express";
 
 import { syncUser } from "../controllers/authController.js";
-import requireAuth from "../middleware/requireAuth.js";
+import requireSupabaseAuth from "../middleware/requireSupabaseAuth.js";
 
 const router = express.Router();
 
-router.post("/sync", requireAuth, syncUser);
+router.post("/sync", requireSupabaseAuth, syncUser);
 
 export default router;

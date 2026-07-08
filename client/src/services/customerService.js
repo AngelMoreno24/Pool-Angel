@@ -1,7 +1,7 @@
 import api from "../api/axios";
 
 export const getCustomers = async () => {
-  const response = await api.get("/customers");
+  const response = await api.get("/customers/getAll");
   return response.data;
 };
 
