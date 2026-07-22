@@ -9,6 +9,7 @@ import PrivateRoute from './pages/PrivateRoute';
 import Customer from './pages/Customer';
 import Pools from './pages/Pools';
 import ProtectedLayout from './pages/ProtectedLayout';
+import CustomerDetails from './pages/CustomerDetails';
 
 
 export const router = createBrowserRouter([
@@ -38,6 +39,10 @@ export const router = createBrowserRouter([
       {
         path: "/customers",
         element: <Customer />,
+      },
+      {
+        path: "/customers/:id",
+        element: <CustomerDetails />,
       },
       {
         path: "/pools",
