@@ -2,6 +2,7 @@ import prisma from "../lib/prisma.js";
 
 export const createCustomer = async (req, res) => {
 
+    console.log("called createCustomer controller")
     try {
 
         const { firstName, lastName, email, phone } = req.body;
@@ -9,10 +10,12 @@ export const createCustomer = async (req, res) => {
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
+            console.log("User is not authorized to create customer");
             return res.status(403).json({ error: "Forbidden" });
         }
 
         if (!firstName) {
+            console.log("Missing required fields for createCustomer:", { firstName, lastName, email, phone });
             return res.status(400).json({ error: "Missing required fields" });
         }
     
@@ -21,9 +24,11 @@ export const createCustomer = async (req, res) => {
             firstName,
             lastName,
             email,
-            phone
+            phone,
+            companyId
         },
         });
+        console.log("Created customer:", customer);
 
         return res.status(201).json(customer);
     }catch (error) { 
@@ -38,7 +43,7 @@ export const getCustomers = async (req, res) => {
     try {
         console.log("getCustomers controller called");
 
-        const { companyId, role } = await req.user;
+        const { companyId, role } = req.user;
 
         console.log("User info:", companyId, role);
         if (!companyId || role !== "OWNER") {

@@ -3,11 +3,12 @@ import React, { useState, useEffect} from 'react'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import {getCustomers} from '../services/customerService';
-
+import {getProperties} from '../services/propertyService';
 const Dashboard = () => {
 
   const { session, signOut } = UserAuth();
   const [customers, setCustomers] = useState([]);
+  const [properties, setProperties] = useState([]);
 
   const navigate = useNavigate();
   
@@ -36,7 +37,18 @@ const Dashboard = () => {
       }
     };
 
+    const fetchProperties = async () => {
+      try {
+        const response = await getProperties(session?.user?.id);
+        setProperties(response);
+        console.log("Fetched properties:", response);
+      } catch (error) {
+        console.error("Error fetching properties:", error);
+      }
+    };
+
     fetchCustomers();
+    fetchProperties();
   },[session]);
 
 
@@ -46,8 +58,7 @@ const Dashboard = () => {
       <h2>Welcome, {session?.user?.email}</h2>
       <div>
         <p class="text-white">total customers = {customers.length}</p>
-        <p class="text-white">total properties = {}</p>
-        <p class="text-white">total pools = {}</p>
+        <p class="text-white">total properties = {properties.length}</p>
       </div>
       <div>
         <p className="hover:cursor-pointer border inline-block px-4 py-3 mt-4" onClick={handleSignOut}>
