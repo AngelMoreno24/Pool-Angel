@@ -2,61 +2,106 @@ import React, { useState, useEffect } from 'react'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getCustomers, createCustomer } from '../services/customerService';
+import { customerSchema } from '../schemas/customerSchema';
  
 const Customer = () => {
-  const { session, signOut } = UserAuth();
-  const [customers, setCustomers] = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
  
-  const navigate = useNavigate();
+    const { session, signOut } = UserAuth();
+    const [customers, setCustomers] = useState([]);
+    const [firstName, setFirstName] = useState("");
+    const [lastName, setLastName] = useState("");
+    const [email, setEmail] = useState("");
+    const [phone, setPhone] = useState("");
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState(null);
  
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const response = await getCustomers();
-        setCustomers(response);
-      } catch (error) {
-        console.error("Error fetching customers:", error);
-        setError("Couldn't load customers. Try refreshing the page.");
-      } finally {
-        setLoading(false);
+    const navigate = useNavigate();
+ 
+    useEffect(() => {
+      const fetchData = async () => {
+        try {
+          setLoading(true);
+          const response = await getCustomers();
+          setCustomers(Array.isArray(response) ? response : response?.data || []);
+        } catch (error) {
+          console.error("Error fetching customers:", error);
+        } finally {
+          setLoading(false);
+        }
       }
-    }
-    fetchData();
-  }, []);
+      fetchData();
+    }, []);
  
-  const isFormValid = firstName.trim() && lastName.trim() && email.trim();
+    const clearFieldError = (field) => {
+      if (fieldErrors[field]) {
+        setFieldErrors((prev) => {
+          const next = { ...prev };
+          delete next[field];
+          return next;
+        });
+      }
+    };
  
-  const handleCreate = async () => {
-    if (!isFormValid || submitting) return;
-    const newCustomer = { firstName, lastName, email, phone };
-    try {
-      setSubmitting(true);
-      setError(null);
-      const createdCustomer = await createCustomer(newCustomer);
-      setCustomers([...customers, createdCustomer]);
-      setFirstName("");
-      setLastName("");
-      setEmail("");
-      setPhone("");
-    } catch (error) {
-      console.error("Error creating customer:", error);
-      setError("Couldn't create that customer. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    const handleCreate = async () => {
+      if (submitting) return;
  
-  const initials = (first, last) =>
-    `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
+      const result = customerSchema.safeParse({ firstName, lastName, email, phone });
+ 
+      if (!result.success) {
+        // Zod gives back one message per invalid field - turn that into
+        // a simple { fieldName: "message" } map the JSX can read directly.
+        const errors = result.error.flatten().fieldErrors;
+        setFieldErrors(
+          Object.fromEntries(
+            Object.entries(errors).map(([field, messages]) => [field, messages[0]])
+          )
+        );
+        return;
+      }
+ 
+      setFieldErrors({});
+      setSubmitError(null);
+ 
+      try {
+        setSubmitting(true);
+        // result.data is the validated (and trimmed) payload - safe to send as-is
+        const createdCustomer = await createCustomer(result.data);
+        setCustomers([...customers, createdCustomer]);
+        setFirstName("");
+        setLastName("");
+        setEmail("");
+        setPhone("");
+      } catch (error) {
+        console.error("Error creating customer:", error);
+        // Surface a server-side validation error if the backend sends one back
+        // in the same { fieldErrors: { field: "message" } } shape
+        const serverFieldErrors = error?.response?.data?.errors;
+        if (serverFieldErrors) {
+          setFieldErrors(
+            Object.fromEntries(
+              Object.entries(serverFieldErrors).map(([field, messages]) => [
+                field,
+                Array.isArray(messages) ? messages[0] : messages,
+              ])
+            )
+          );
+        } else {
+          setSubmitError("Couldn't create that customer. Please try again.");
+        }
+      } finally {
+        setSubmitting(false);
+      }
+    };
+ 
+    const initials = (first, last) =>
+      `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
+ 
+    const inputClasses = (field) =>
+      `w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+        fieldErrors[field] ? "border-red-300" : "border-slate-300"
+      }`;
  
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -68,12 +113,6 @@ const Customer = () => {
             View existing customers or add a new one.
           </p>
         </header>
- 
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
  
         {/* Customer list */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -134,6 +173,12 @@ const Customer = () => {
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
           <h2 className="text-base font-medium text-slate-900 mb-4">Add a customer</h2>
  
+          {submitError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              {submitError}
+            </div>
+          )}
+ 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -142,10 +187,13 @@ const Customer = () => {
               <input
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                onChange={(e) => { setFirstName(e.target.value); clearFieldError("firstName"); }}
                 placeholder="Jane"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className={inputClasses("firstName")}
               />
+              {fieldErrors.firstName && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.firstName}</p>
+              )}
             </div>
  
             <div>
@@ -155,10 +203,13 @@ const Customer = () => {
               <input
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
+                onChange={(e) => { setLastName(e.target.value); clearFieldError("lastName"); }}
                 placeholder="Doe"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className={inputClasses("lastName")}
               />
+              {fieldErrors.lastName && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.lastName}</p>
+              )}
             </div>
  
             <div>
@@ -168,10 +219,13 @@ const Customer = () => {
               <input
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
                 placeholder="jane@example.com"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className={inputClasses("email")}
               />
+              {fieldErrors.email && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+              )}
             </div>
  
             <div>
@@ -181,17 +235,20 @@ const Customer = () => {
               <input
                 type="tel"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => { setPhone(e.target.value); clearFieldError("phone"); }}
                 placeholder="(555) 123-4567"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className={inputClasses("phone")}
               />
+              {fieldErrors.phone && (
+                <p className="mt-1 text-sm text-red-600">{fieldErrors.phone}</p>
+              )}
             </div>
           </div>
  
           <div className="mt-5 flex justify-end">
             <button
               type="button"
-              disabled={!isFormValid || submitting}
+              disabled={submitting}
               onClick={handleCreate}
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
