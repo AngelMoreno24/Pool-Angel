@@ -45,7 +45,6 @@ export const getCustomers = async (req, res) => {
 
         const { companyId, role } = req.user;
 
-        console.log("User info:", companyId, role);
         if (!companyId || role !== "OWNER") {
             return res.status(403).json({ error: "Forbidden" });
         }
@@ -55,7 +54,6 @@ export const getCustomers = async (req, res) => {
                 { companyId: companyId
             },
         });
-        console.log("Retrieved customers:", customers);
         return res.status(200).json(customers);
     }catch (error) { 
         console.error(error);

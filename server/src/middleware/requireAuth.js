@@ -44,7 +44,7 @@ const requireAuth = async (req, res, next) => {
       });
     }
 
-    console.log("Authenticated useraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:", user);
+    //console.log("Authenticated useraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:", user);
 
     // Attach both auth + app data
     req.user = {
@@ -54,7 +54,7 @@ const requireAuth = async (req, res, next) => {
       role: user.role,
     };
 
-    console.log("Authenticated user:", req.user);
+    //console.log("Authenticated user:", req.user);
 
     next();
 
