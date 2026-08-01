@@ -113,17 +113,17 @@ npx prisma migrate dev --name init
 
 ### Supabase Auth
 
-* [ ] Register
-* [ ] Login
-* [ ] Logout
-* [ ] Current User Endpoint
-* [ ] Session Validation
+* [x] Register
+* [x] Login
+* [x] Logout
+* [x] Current User Endpoint
+* [x] Session Validation
 
 ### Protected Routes
 
-* [ ] Dashboard Route
-* [ ] Customer Routes
-* [ ] Pool Routes
+* [x] Dashboard Route
+* [x] Customer Routes
+* [x] Pool Routes
 
 ---
 
@@ -133,11 +133,11 @@ npx prisma migrate dev --name init
 
 CRUD Operations:
 
-* [ ] Create Customer
-* [ ] View Customers
-* [ ] View Customer Details
-* [ ] Update Customer
-* [ ] Delete Customer
+* [x] Create Customer
+* [x] View Customers
+* [x] View Customer Details
+* [x] Update Customer
+* [x] Delete Customer
 
 Fields:
 
@@ -152,10 +152,10 @@ Fields:
 
 CRUD Operations:
 
-* [ ] Create Property
-* [ ] View Properties
-* [ ] Update Property
-* [ ] Delete Property
+* [x] Create Property
+* [x] View Properties
+* [x] Update Property
+* [x] Delete Property
 
 Fields:
 
@@ -170,10 +170,10 @@ Fields:
 
 CRUD Operations:
 
-* [ ] Create Pool
-* [ ] View Pools
-* [ ] Update Pool
-* [ ] Delete Pool
+* [x] Create Pool
+* [x] View Pools
+* [x] Update Pool
+* [x] Delete Pool
 
 Fields:
 
@@ -187,13 +187,13 @@ Fields:
 
 Dashboard Metrics:
 
-* [ ] Total Customers
+* [x] Total Customers
 * [ ] Total Properties
 * [ ] Total Pools
 
 Dashboard Widgets:
 
-* [ ] Recent Customers
+* [x] Recent Customers
 * [ ] Recent Pools
 
 ---
