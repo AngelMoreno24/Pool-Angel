@@ -23,7 +23,6 @@ export const createCustomer = async (req, res) => {
             companyId
         },
         });
-        console.log("Created customer:", customer);
  
         return res.status(201).json(customer);
     }catch (error) { 
