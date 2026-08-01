@@ -29,6 +29,7 @@ app.get("/", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/customers", customerRoutes);
 app.use("/properties", propertyRoutes);
+app.use("/pools", poolRoutes);
 
 const PORT = process.env.PORT || 5000;
 
