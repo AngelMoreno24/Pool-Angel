@@ -10,7 +10,7 @@ import Customer from './pages/Customer';
 import Pools from './pages/Pools';
 import ProtectedLayout from './pages/ProtectedLayout';
 import CustomerDetails from './pages/CustomerDetails';
-
+import PropertyDetails from './pages/PropertyDetails';
 
 export const router = createBrowserRouter([
   {
@@ -43,6 +43,10 @@ export const router = createBrowserRouter([
       {
         path: "/customers/:id",
         element: <CustomerDetails />,
+      },
+      {
+        path: "/properties/:id",
+        element: <PropertyDetails />,
       },
       {
         path: "/pools",

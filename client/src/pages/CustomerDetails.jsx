@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCustomerById, updateCustomer, deleteCustomer } from '../services/customerService';
+import { getPropertiesByCustomer, createProperty } from '../services/propertyService';
  
 const CustomerDetails = () => {
   const { id } = useParams();
@@ -20,6 +21,18 @@ const CustomerDetails = () => {
  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+ 
+  // Properties
+  const [properties, setProperties] = useState([]);
+  const [propertiesLoading, setPropertiesLoading] = useState(true);
+  const [propertiesError, setPropertiesError] = useState(null);
+  const [showAddProperty, setShowAddProperty] = useState(false);
+  const [addingProperty, setAddingProperty] = useState(false);
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [poolType, setPoolType] = useState("");
  
   useEffect(() => {
     const fetchCustomer = async () => {
@@ -41,7 +54,33 @@ const CustomerDetails = () => {
     fetchCustomer();
   }, [id]);
  
+  useEffect(() => {
+    const fetchProperties = async () => {
+      try {
+        setPropertiesLoading(true);
+        const response = await getPropertiesByCustomer(id);
+        console.log("Fetched properties:", response);
+        // Handle APIs that wrap the array, e.g. { data: [...] } or { properties: [...] }
+        const list = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+            ? response.data
+            : Array.isArray(response?.properties)
+              ? response.properties
+              : [];
+        setProperties(list);
+      } catch (error) {
+        console.error("Error fetching properties:", error);
+        setPropertiesError("Couldn't load properties for this customer.");
+      } finally {
+        setPropertiesLoading(false);
+      }
+    }
+    fetchProperties();
+  }, [id]);
+ 
   const isFormValid = firstName.trim() && lastName.trim() && email.trim();
+  const isPropertyFormValid = address.trim();
  
   const startEditing = () => {
     setError(null);
@@ -61,8 +100,18 @@ const CustomerDetails = () => {
     try {
       setSaving(true);
       setError(null);
-      const updated = await updateCustomer(id, { firstName, lastName, email, phone });
-      setCustomer(updated);
+      const response = await updateCustomer(id, { firstName, lastName, email, phone });
+      console.log("Update customer response:", response);
+      const updated = response?.firstName
+        ? response
+        : response?.data?.firstName
+          ? response.data
+          : null;
+      if (updated) {
+        setCustomer(updated);
+      } else {
+        setCustomer((prev) => ({ ...prev, firstName, lastName, email, phone }));
+      }
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating customer:", error);
@@ -83,6 +132,38 @@ const CustomerDetails = () => {
       setError("Couldn't delete this customer. Please try again.");
       setDeleting(false);
       setShowDeleteConfirm(false);
+    }
+  };
+ 
+  const resetPropertyForm = () => {
+    setAddress("");
+    setCity("");
+    setState("");
+    setZipCode("");
+    setPoolType("");
+  };
+ 
+  const handleAddProperty = async () => {
+    if (!isPropertyFormValid || addingProperty) return;
+    try {
+      setAddingProperty(true);
+      setPropertiesError(null);
+      const newProperty = await createProperty({
+        customerId: id,
+        address,
+        city,
+        state,
+        zipCode,
+        poolType,
+      });
+      setProperties([...properties, newProperty]);
+      resetPropertyForm();
+      setShowAddProperty(false);
+    } catch (error) {
+      console.error("Error creating property:", error);
+      setPropertiesError("Couldn't add that property. Please try again.");
+    } finally {
+      setAddingProperty(false);
     }
   };
  
@@ -273,6 +354,167 @@ const CustomerDetails = () => {
               </div>
             )}
           </div>
+        </section>
+ 
+        {/* Properties section */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Properties {!propertiesLoading && (
+                <span className="text-slate-400 font-normal">({properties.length})</span>
+              )}
+            </h2>
+            <button
+              onClick={() => setShowAddProperty((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              {showAddProperty ? "Cancel" : "Add property"}
+            </button>
+          </div>
+ 
+          {propertiesError && (
+            <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {propertiesError}
+            </div>
+          )}
+ 
+          {/* Add property form */}
+          {showAddProperty && (
+            <div className="px-6 pt-5 pb-6 border-b border-slate-200 bg-slate-50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={address}
+                    onChange={(e) => setAddress(e.target.value)}
+                    placeholder="123 Desert Ave"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Phoenix"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
+                    <input
+                      type="text"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      placeholder="AZ"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label>
+                    <input
+                      type="text"
+                      value={zipCode}
+                      onChange={(e) => setZipCode(e.target.value)}
+                      placeholder="85001"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Pool type</label>
+                  <input
+                    type="text"
+                    value={poolType}
+                    onChange={(e) => setPoolType(e.target.value)}
+                    placeholder="Gunite, saltwater, etc."
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+ 
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowAddProperty(false);
+                    resetPropertyForm();
+                  }}
+                  disabled={addingProperty}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddProperty}
+                  disabled={!isPropertyFormValid || addingProperty}
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {addingProperty && (
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                    </svg>
+                  )}
+                  {addingProperty ? "Adding..." : "Add property"}
+                </button>
+              </div>
+            </div>
+          )}
+ 
+          {/* Properties list */}
+          {propertiesLoading ? (
+            <ul className="divide-y divide-slate-100">
+              {[...Array(2)].map((_, i) => (
+                <li key={i} className="px-6 py-4 flex items-center gap-3 animate-pulse">
+                  <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                  <div className="h-4 w-48 bg-slate-200 rounded" />
+                </li>
+              ))}
+            </ul>
+          ) : properties.length === 0 ? (
+            <div className="px-6 py-10 text-center">
+              <p className="text-sm text-slate-500">No properties yet.</p>
+              <p className="text-sm text-slate-400 mt-1">Add this customer's first property above.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {properties.map((property) => (
+                <li key={property.id}>
+                  <Link
+                    to={`/properties/${property.id}`}
+                    className="px-6 py-4 flex items-center gap-3 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="h-9 w-9 shrink-0 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {property.address || "Untitled property"}
+                      </p>
+                      <p className="text-sm text-slate-500 truncate">
+                        {[property.city, property.state].filter(Boolean).join(", ")}
+                        {property.poolType ? ` · ${property.poolType}` : ""}
+                      </p>
+                    </div>
+                    <svg
+                      className="ml-auto h-4 w-4 text-slate-300 shrink-0"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       </div>
  
