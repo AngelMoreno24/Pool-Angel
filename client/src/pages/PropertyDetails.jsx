@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getPropertyById, updateProperty, deleteProperty } from '../services/propertyService';
+import { createPool, getPoolByProperty, updatePool, deletePool } from '../services/poolService';
  
 const PropertyDetails = () => {
   const { id } = useParams();
@@ -17,10 +18,22 @@ const PropertyDetails = () => {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
-  const [poolType, setPoolType] = useState("");
  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+ 
+  // Pool
+  const [pool, setPool] = useState(null);
+  const [poolLoading, setPoolLoading] = useState(true);
+  const [poolError, setPoolError] = useState(null);
+  const [isEditingPool, setIsEditingPool] = useState(false);
+  const [showAddPool, setShowAddPool] = useState(false);
+  const [savingPool, setSavingPool] = useState(false);
+  const [poolTypeField, setPoolTypeField] = useState("");
+  const [poolSize, setPoolSize] = useState("");
+  const [poolNotes, setPoolNotes] = useState("");
+  const [showDeletePoolConfirm, setShowDeletePoolConfirm] = useState(false);
+  const [deletingPool, setDeletingPool] = useState(false);
  
   useEffect(() => {
     const fetchProperty = async () => {
@@ -32,7 +45,6 @@ const PropertyDetails = () => {
         setCity(response.city || "");
         setState(response.state || "");
         setZipCode(response.zipCode || "");
-        setPoolType(response.poolType || "");
       } catch (error) {
         console.error("Error fetching property:", error);
         setError("Couldn't load this property.");
@@ -41,6 +53,32 @@ const PropertyDetails = () => {
       }
     }
     fetchProperty();
+  }, [id]);
+ 
+  useEffect(() => {
+    const fetchPool = async () => {
+      try {
+        setPoolLoading(true);
+        const response = await getPoolByProperty(id);
+        setPool(response || null);
+        if (response) {
+          setPoolTypeField(response.type || "");
+          setPoolSize(response.size || "");
+          setPoolNotes(response.notes || "");
+        }
+      } catch (error) {
+        // A property with no pool yet commonly 404s - that's not a real error
+        if (error?.response?.status === 404) {
+          setPool(null);
+        } else {
+          console.error("Error fetching pool:", error);
+          setPoolError("Couldn't load pool info for this property.");
+        }
+      } finally {
+        setPoolLoading(false);
+      }
+    }
+    fetchPool();
   }, [id]);
  
   const isFormValid = address.trim();
@@ -55,7 +93,6 @@ const PropertyDetails = () => {
     setCity(property.city || "");
     setState(property.state || "");
     setZipCode(property.zipCode || "");
-    setPoolType(property.poolType || "");
     setIsEditing(false);
   };
  
@@ -64,7 +101,7 @@ const PropertyDetails = () => {
     try {
       setSaving(true);
       setError(null);
-      const response = await updateProperty(id, { address, city, state, zipCode, poolType });
+      const response = await updateProperty(id, { address, city, state, zipCode });
       console.log("Update property response:", response);
       // Handle APIs that wrap the updated record, e.g. { data: {...} } or { property: {...} }
       const updated = response?.address
@@ -78,7 +115,7 @@ const PropertyDetails = () => {
         setProperty(updated);
       } else {
         // Fall back to merging the form values we know were saved, rather than showing blanks
-        setProperty((prev) => ({ ...prev, address, city, state, zipCode, poolType }));
+        setProperty((prev) => ({ ...prev, address, city, state, zipCode }));
       }
       setIsEditing(false);
     } catch (error) {
@@ -86,6 +123,92 @@ const PropertyDetails = () => {
       setError("Couldn't save those changes. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+ 
+  const isPoolFormValid = poolTypeField.trim() || poolSize.trim();
+ 
+  const resetPoolForm = () => {
+    setPoolTypeField(pool?.type || "");
+    setPoolSize(pool?.size || "");
+    setPoolNotes(pool?.notes || "");
+  };
+ 
+  const handleCreatePool = async () => {
+    if (!isPoolFormValid || savingPool) return;
+    try {
+      setSavingPool(true);
+      setPoolError(null);
+      const response = await createPool({
+        propertyId: id,
+        type: poolTypeField,
+        size: poolSize,
+        notes: poolNotes,
+      });
+      setPool(response);
+      setShowAddPool(false);
+    } catch (error) {
+      console.error("Error creating pool:", error);
+      setPoolError("Couldn't add pool info. Please try again.");
+    } finally {
+      setSavingPool(false);
+    }
+  };
+ 
+  const startEditingPool = () => {
+    setPoolError(null);
+    setPoolTypeField(pool.type || "");
+    setPoolSize(pool.size || "");
+    setPoolNotes(pool.notes || "");
+    setIsEditingPool(true);
+  };
+ 
+  const cancelEditingPool = () => {
+    resetPoolForm();
+    setIsEditingPool(false);
+  };
+ 
+  const handleSavePool = async () => {
+    if (!isPoolFormValid || savingPool) return;
+    try {
+      setSavingPool(true);
+      setPoolError(null);
+      const response = await updatePool(pool.id, {
+        type: poolTypeField,
+        size: poolSize,
+        notes: poolNotes,
+      });
+      // Guard against a wrapped response, same pattern as property/customer saves
+      const updated = response?.id ? response : response?.data?.id ? response.data : null;
+      if (updated) {
+        setPool(updated);
+      } else {
+        setPool((prev) => ({ ...prev, type: poolTypeField, size: poolSize, notes: poolNotes }));
+      }
+      setIsEditingPool(false);
+    } catch (error) {
+      console.error("Error updating pool:", error);
+      setPoolError("Couldn't save pool changes. Please try again.");
+    } finally {
+      setSavingPool(false);
+    }
+  };
+ 
+  const handleDeletePool = async () => {
+    try {
+      setDeletingPool(true);
+      setPoolError(null);
+      await deletePool(pool.id);
+      setPool(null);
+      setPoolTypeField("");
+      setPoolSize("");
+      setPoolNotes("");
+      setShowDeletePoolConfirm(false);
+    } catch (error) {
+      console.error("Error deleting pool:", error);
+      setPoolError("Couldn't delete pool info. Please try again.");
+    } finally {
+      setDeletingPool(false);
     }
   };
  
@@ -240,10 +363,6 @@ const PropertyDetails = () => {
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">ZIP</dt>
                   <dd className="mt-1 text-sm text-slate-900">{property.zipCode || "—"}</dd>
                 </div>
-                <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Pool type</dt>
-                  <dd className="mt-1 text-sm text-slate-900">{property.poolType || "—"}</dd>
-                </div>
               </dl>
             ) : (
               <div className="space-y-5">
@@ -286,15 +405,6 @@ const PropertyDetails = () => {
                       />
                     </div>
                   </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Pool type</label>
-                    <input
-                      type="text"
-                      value={poolType}
-                      onChange={(e) => setPoolType(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                  </div>
                 </div>
  
                 <div className="flex justify-end gap-2 pt-1">
@@ -323,7 +433,236 @@ const PropertyDetails = () => {
             )}
           </div>
         </section>
+ 
+        {/* Pool section */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
+            <h2 className="text-base font-semibold text-slate-900">Pool</h2>
+            {!poolLoading && !pool && !showAddPool && (
+              <button
+                onClick={() => setShowAddPool(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add pool
+              </button>
+            )}
+            {pool && !isEditingPool && (
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={startEditingPool}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit
+                </button>
+                <button
+                  onClick={() => setShowDeletePoolConfirm(true)}
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-slate-300 text-slate-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors"
+                  aria-label="Delete pool"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+ 
+          {poolError && (
+            <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {poolError}
+            </div>
+          )}
+ 
+          <div className="p-6">
+            {poolLoading ? (
+              <div className="animate-pulse space-y-3">
+                <div className="h-4 w-32 bg-slate-200 rounded" />
+                <div className="h-4 w-48 bg-slate-200 rounded" />
+              </div>
+            ) : !pool && !showAddPool ? (
+              <div className="text-center py-6">
+                <p className="text-sm text-slate-500">No pool info on file yet.</p>
+                <p className="text-sm text-slate-400 mt-1">Add the pool's type, size, and any notes.</p>
+              </div>
+            ) : showAddPool ? (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                    <input
+                      type="text"
+                      value={poolTypeField}
+                      onChange={(e) => setPoolTypeField(e.target.value)}
+                      placeholder="Gunite, vinyl, fiberglass..."
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Size</label>
+                    <input
+                      type="text"
+                      value={poolSize}
+                      onChange={(e) => setPoolSize(e.target.value)}
+                      placeholder="e.g. 15,000 gal"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                    <textarea
+                      value={poolNotes}
+                      onChange={(e) => setPoolNotes(e.target.value)}
+                      rows={3}
+                      placeholder="Equipment, access details, anything worth flagging"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+ 
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setShowAddPool(false);
+                      resetPoolForm();
+                    }}
+                    disabled={savingPool}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreatePool}
+                    disabled={!isPoolFormValid || savingPool}
+                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {savingPool && (
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                    )}
+                    {savingPool ? "Adding..." : "Add pool"}
+                  </button>
+                </div>
+              </div>
+            ) : !isEditingPool ? (
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Type</dt>
+                  <dd className="mt-1 text-sm text-slate-900">{pool.type || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Size</dt>
+                  <dd className="mt-1 text-sm text-slate-900">{pool.size || "—"}</dd>
+                </div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Notes</dt>
+                  <dd className="mt-1 text-sm text-slate-900 whitespace-pre-wrap">{pool.notes || "—"}</dd>
+                </div>
+              </dl>
+            ) : (
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                    <input
+                      type="text"
+                      value={poolTypeField}
+                      onChange={(e) => setPoolTypeField(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Size</label>
+                    <input
+                      type="text"
+                      value={poolSize}
+                      onChange={(e) => setPoolSize(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                    <textarea
+                      value={poolNotes}
+                      onChange={(e) => setPoolNotes(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+ 
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={cancelEditingPool}
+                    disabled={savingPool}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSavePool}
+                    disabled={!isPoolFormValid || savingPool}
+                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {savingPool && (
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                    )}
+                    {savingPool ? "Saving..." : "Save changes"}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
+ 
+      {/* Delete pool confirmation modal */}
+      {showDeletePoolConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40"
+            onClick={() => !deletingPool && setShowDeletePoolConfirm(false)}
+          />
+          <div className="relative bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
+            <h3 className="text-base font-semibold text-slate-900">Delete pool info?</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              This can't be undone. The pool's type, size, and notes will be permanently removed.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                onClick={() => setShowDeletePoolConfirm(false)}
+                disabled={deletingPool}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePool}
+                disabled={deletingPool}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-500 disabled:opacity-50 transition-colors"
+              >
+                {deletingPool && (
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                  </svg>
+                )}
+                {deletingPool ? "Deleting..." : "Delete pool"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
  
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
