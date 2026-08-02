@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCustomerById, updateCustomer, deleteCustomer } from '../services/customerService';
 import { getPropertiesByCustomer, createProperty } from '../services/propertyService';
+import { customerSchema, customerUpdateSchema } from '../schemas/customerSchema';
+import { propertySchema } from '../schemas/propertySchema';
  
 const CustomerDetails = () => {
   const { id } = useParams();
@@ -13,6 +15,7 @@ const CustomerDetails = () => {
  
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [customerErrors, setCustomerErrors] = useState({});
  
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -28,6 +31,7 @@ const CustomerDetails = () => {
   const [propertiesError, setPropertiesError] = useState(null);
   const [showAddProperty, setShowAddProperty] = useState(false);
   const [addingProperty, setAddingProperty] = useState(false);
+  const [propertyErrors, setPropertyErrors] = useState({});
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
@@ -84,6 +88,7 @@ const CustomerDetails = () => {
  
   const startEditing = () => {
     setError(null);
+    setCustomerErrors({});
     setIsEditing(true);
   };
  
@@ -92,15 +97,30 @@ const CustomerDetails = () => {
     setLastName(customer.lastName || "");
     setEmail(customer.email || "");
     setPhone(customer.phone || "");
+    setCustomerErrors({});
     setIsEditing(false);
   };
  
   const handleSave = async () => {
-    if (!isFormValid || saving) return;
+    if (saving) return;
+
+    const validation = customerUpdateSchema.safeParse({
+      firstName,
+      lastName,
+      email,
+      phone,
+    });
+
+    if (!validation.success) {
+      setCustomerErrors(validation.error.flatten().fieldErrors);
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
-      const response = await updateCustomer(id, { firstName, lastName, email, phone });
+      setCustomerErrors({});
+      const response = await updateCustomer(id, validation.data);
       console.log("Update customer response:", response);
       const updated = response?.firstName
         ? response
@@ -141,21 +161,31 @@ const CustomerDetails = () => {
     setState("");
     setZipCode("");
     setPoolType("");
+    setPropertyErrors({});
   };
  
   const handleAddProperty = async () => {
-    if (!isPropertyFormValid || addingProperty) return;
+    if (addingProperty) return;
+
+    const validation = propertySchema.safeParse({
+      customerId: id,
+      address,
+      city,
+      state,
+      zip: zipCode,
+      poolType,
+    });
+
+    if (!validation.success) {
+      setPropertyErrors(validation.error.flatten().fieldErrors);
+      return;
+    }
+
     try {
       setAddingProperty(true);
       setPropertiesError(null);
-      const newProperty = await createProperty({
-        customerId: id,
-        address,
-        city,
-        state,
-        zipCode,
-        poolType,
-      });
+      setPropertyErrors({});
+      const newProperty = await createProperty(validation.data);
       setProperties([...properties, newProperty]);
       resetPropertyForm();
       setShowAddProperty(false);
@@ -297,8 +327,11 @@ const CustomerDetails = () => {
                       type="text"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.firstName ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {customerErrors.firstName && (
+                      <p className="mt-1 text-sm text-red-600">{customerErrors.firstName[0]}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Last name</label>
@@ -306,8 +339,11 @@ const CustomerDetails = () => {
                       type="text"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.lastName ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {customerErrors.lastName && (
+                      <p className="mt-1 text-sm text-red-600">{customerErrors.lastName[0]}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
@@ -315,8 +351,11 @@ const CustomerDetails = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.email ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {customerErrors.email && (
+                      <p className="mt-1 text-sm text-red-600">{customerErrors.email[0]}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
@@ -324,8 +363,11 @@ const CustomerDetails = () => {
                       type="tel"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.phone ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {customerErrors.phone && (
+                      <p className="mt-1 text-sm text-red-600">{customerErrors.phone[0]}</p>
+                    )}
                   </div>
                 </div>
  
@@ -392,8 +434,11 @@ const CustomerDetails = () => {
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="123 Desert Ave"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.address ? 'border-red-400' : 'border-slate-300'}`}
                   />
+                  {propertyErrors.address && (
+                    <p className="mt-1 text-sm text-red-600">{propertyErrors.address[0]}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
@@ -402,8 +447,11 @@ const CustomerDetails = () => {
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="Phoenix"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.city ? 'border-red-400' : 'border-slate-300'}`}
                   />
+                  {propertyErrors.city && (
+                    <p className="mt-1 text-sm text-red-600">{propertyErrors.city[0]}</p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -413,8 +461,11 @@ const CustomerDetails = () => {
                       value={state}
                       onChange={(e) => setState(e.target.value)}
                       placeholder="AZ"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.state ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {propertyErrors.state && (
+                      <p className="mt-1 text-sm text-red-600">{propertyErrors.state[0]}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label>
@@ -423,8 +474,11 @@ const CustomerDetails = () => {
                       value={zipCode}
                       onChange={(e) => setZipCode(e.target.value)}
                       placeholder="85001"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.zip ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {propertyErrors.zip && (
+                      <p className="mt-1 text-sm text-red-600">{propertyErrors.zip[0]}</p>
+                    )}
                   </div>
                 </div>
                 <div className="sm:col-span-2">
@@ -434,8 +488,11 @@ const CustomerDetails = () => {
                     value={poolType}
                     onChange={(e) => setPoolType(e.target.value)}
                     placeholder="Gunite, saltwater, etc."
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.poolType ? 'border-red-400' : 'border-slate-300'}`}
                   />
+                  {propertyErrors.poolType && (
+                    <p className="mt-1 text-sm text-red-600">{propertyErrors.poolType[0]}</p>
+                  )}
                 </div>
               </div>
  

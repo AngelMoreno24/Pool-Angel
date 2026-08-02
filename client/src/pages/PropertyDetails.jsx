@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getPropertyById, updateProperty, deleteProperty } from '../services/propertyService';
 import { createPool, getPoolByProperty, updatePool, deletePool } from '../services/poolService';
+import { propertySchema } from '../schemas/propertySchema';
+import { poolSchema } from '../schemas/poolSchema';
  
 const PropertyDetails = () => {
   const { id } = useParams();
@@ -13,6 +15,7 @@ const PropertyDetails = () => {
  
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [propertyErrors, setPropertyErrors] = useState({});
  
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -34,6 +37,7 @@ const PropertyDetails = () => {
   const [poolNotes, setPoolNotes] = useState("");
   const [showDeletePoolConfirm, setShowDeletePoolConfirm] = useState(false);
   const [deletingPool, setDeletingPool] = useState(false);
+  const [poolErrors, setPoolErrors] = useState({});
  
   useEffect(() => {
     const fetchProperty = async () => {
@@ -85,6 +89,7 @@ const PropertyDetails = () => {
  
   const startEditing = () => {
     setError(null);
+    setPropertyErrors({});
     setIsEditing(true);
   };
  
@@ -93,15 +98,31 @@ const PropertyDetails = () => {
     setCity(property.city || "");
     setState(property.state || "");
     setZipCode(property.zipCode || "");
+    setPropertyErrors({});
     setIsEditing(false);
   };
  
   const handleSave = async () => {
-    if (!isFormValid || saving) return;
+    if (saving) return;
+
+    const validation = propertySchema.safeParse({
+      customerId: property?.customerId || "",
+      address,
+      city,
+      state,
+      zip: zipCode,
+    });
+
+    if (!validation.success) {
+      setPropertyErrors(validation.error.flatten().fieldErrors);
+      return;
+    }
+
     try {
       setSaving(true);
       setError(null);
-      const response = await updateProperty(id, { address, city, state, zipCode });
+      setPropertyErrors({});
+      const response = await updateProperty(id, { address, city, state, zipCode: zipCode });
       console.log("Update property response:", response);
       // Handle APIs that wrap the updated record, e.g. { data: {...} } or { property: {...} }
       const updated = response?.address
@@ -132,19 +153,29 @@ const PropertyDetails = () => {
     setPoolTypeField(pool?.type || "");
     setPoolSize(pool?.size || "");
     setPoolNotes(pool?.notes || "");
+    setPoolErrors({});
   };
  
   const handleCreatePool = async () => {
-    if (!isPoolFormValid || savingPool) return;
+    if (savingPool) return;
+
+    const validation = poolSchema.safeParse({
+      propertyId: id,
+      type: poolTypeField,
+      size: poolSize,
+      notes: poolNotes,
+    });
+
+    if (!validation.success) {
+      setPoolErrors(validation.error.flatten().fieldErrors);
+      return;
+    }
+
     try {
       setSavingPool(true);
       setPoolError(null);
-      const response = await createPool({
-        propertyId: id,
-        type: poolTypeField,
-        size: poolSize,
-        notes: poolNotes,
-      });
+      setPoolErrors({});
+      const response = await createPool(validation.data);
       setPool(response);
       setShowAddPool(false);
     } catch (error) {
@@ -157,6 +188,7 @@ const PropertyDetails = () => {
  
   const startEditingPool = () => {
     setPoolError(null);
+    setPoolErrors({});
     setPoolTypeField(pool.type || "");
     setPoolSize(pool.size || "");
     setPoolNotes(pool.notes || "");
@@ -169,15 +201,25 @@ const PropertyDetails = () => {
   };
  
   const handleSavePool = async () => {
-    if (!isPoolFormValid || savingPool) return;
+    if (savingPool) return;
+
+    const validation = poolSchema.safeParse({
+      propertyId: id,
+      type: poolTypeField,
+      size: poolSize,
+      notes: poolNotes,
+    });
+
+    if (!validation.success) {
+      setPoolErrors(validation.error.flatten().fieldErrors);
+      return;
+    }
+
     try {
       setSavingPool(true);
       setPoolError(null);
-      const response = await updatePool(pool.id, {
-        type: poolTypeField,
-        size: poolSize,
-        notes: poolNotes,
-      });
+      setPoolErrors({});
+      const response = await updatePool(pool.id, validation.data);
       // Guard against a wrapped response, same pattern as property/customer saves
       const updated = response?.id ? response : response?.data?.id ? response.data : null;
       if (updated) {
@@ -373,8 +415,11 @@ const PropertyDetails = () => {
                       type="text"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.address ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {propertyErrors.address && (
+                      <p className="mt-1 text-sm text-red-600">{propertyErrors.address[0]}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
@@ -382,8 +427,11 @@ const PropertyDetails = () => {
                       type="text"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.city ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {propertyErrors.city && (
+                      <p className="mt-1 text-sm text-red-600">{propertyErrors.city[0]}</p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -392,8 +440,11 @@ const PropertyDetails = () => {
                         type="text"
                         value={state}
                         onChange={(e) => setState(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.state ? 'border-red-400' : 'border-slate-300'}`}
                       />
+                      {propertyErrors.state && (
+                        <p className="mt-1 text-sm text-red-600">{propertyErrors.state[0]}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label>
@@ -401,8 +452,11 @@ const PropertyDetails = () => {
                         type="text"
                         value={zipCode}
                         onChange={(e) => setZipCode(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.zip ? 'border-red-400' : 'border-slate-300'}`}
                       />
+                      {propertyErrors.zip && (
+                        <p className="mt-1 text-sm text-red-600">{propertyErrors.zip[0]}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -500,8 +554,11 @@ const PropertyDetails = () => {
                       value={poolTypeField}
                       onChange={(e) => setPoolTypeField(e.target.value)}
                       placeholder="Gunite, vinyl, fiberglass..."
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${poolErrors.type ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {poolErrors.type && (
+                      <p className="mt-1 text-sm text-red-600">{poolErrors.type[0]}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Size</label>
@@ -510,8 +567,11 @@ const PropertyDetails = () => {
                       value={poolSize}
                       onChange={(e) => setPoolSize(e.target.value)}
                       placeholder="e.g. 15,000 gal"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${poolErrors.size ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {poolErrors.size && (
+                      <p className="mt-1 text-sm text-red-600">{poolErrors.size[0]}</p>
+                    )}
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
@@ -520,8 +580,11 @@ const PropertyDetails = () => {
                       onChange={(e) => setPoolNotes(e.target.value)}
                       rows={3}
                       placeholder="Equipment, access details, anything worth flagging"
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${poolErrors.notes ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {poolErrors.notes && (
+                      <p className="mt-1 text-sm text-red-600">{poolErrors.notes[0]}</p>
+                    )}
                   </div>
                 </div>
  
@@ -575,8 +638,11 @@ const PropertyDetails = () => {
                       type="text"
                       value={poolTypeField}
                       onChange={(e) => setPoolTypeField(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${poolErrors.type ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {poolErrors.type && (
+                      <p className="mt-1 text-sm text-red-600">{poolErrors.type[0]}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Size</label>
@@ -584,8 +650,11 @@ const PropertyDetails = () => {
                       type="text"
                       value={poolSize}
                       onChange={(e) => setPoolSize(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${poolErrors.size ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {poolErrors.size && (
+                      <p className="mt-1 text-sm text-red-600">{poolErrors.size[0]}</p>
+                    )}
                   </div>
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
@@ -593,8 +662,11 @@ const PropertyDetails = () => {
                       value={poolNotes}
                       onChange={(e) => setPoolNotes(e.target.value)}
                       rows={3}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${poolErrors.notes ? 'border-red-400' : 'border-slate-300'}`}
                     />
+                    {poolErrors.notes && (
+                      <p className="mt-1 text-sm text-red-600">{poolErrors.notes[0]}</p>
+                    )}
                   </div>
                 </div>
  
