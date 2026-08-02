@@ -66,21 +66,21 @@ export const getPool = async (req, res) => {
     try {
 
 
-        const { poolId } = req.params;
+        const { propertyId } = req.params;
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
             return res.status(403).json({ error: "Forbidden" });
         }
 
-        if (!poolId) {
+        if (!propertyId) {
             return res.status(400).json({ error: "Missing required fields" });
         }
     
         const pool = await prisma.pool.findFirst({
             where: 
                 { 
-                    id: poolId,
+                    propertyId: propertyId,
                     companyId: companyId,
             },
             include: {
