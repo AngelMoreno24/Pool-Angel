@@ -3,6 +3,8 @@ import { UserAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { getCustomers, createCustomer } from '../services/customerService';
 import { customerSchema } from '../schemas/customerSchema';
+import FormField from '../components/FormField';
+import Spinner from '../components/Spinner';
  
 const Customer = () => {
  
@@ -50,14 +52,9 @@ const Customer = () => {
       const result = customerSchema.safeParse({ firstName, lastName, email, phone });
  
       if (!result.success) {
-        // Zod gives back one message per invalid field - turn that into
-        // a simple { fieldName: "message" } map the JSX can read directly.
-        const errors = result.error.flatten().fieldErrors;
-        setFieldErrors(
-          Object.fromEntries(
-            Object.entries(errors).map(([field, messages]) => [field, messages[0]])
-          )
-        );
+        // Keep the array shape flatten() gives back - FormField reads error[0] directly,
+        // same convention as CustomerDetails and PropertyDetails.
+        setFieldErrors(result.error.flatten().fieldErrors);
         return;
       }
  
@@ -76,14 +73,14 @@ const Customer = () => {
       } catch (error) {
         console.error("Error creating customer:", error);
         // Surface a server-side validation error if the backend sends one back
-        // in the same { fieldErrors: { field: "message" } } shape
+        // in the same { fieldName: [messages] } shape
         const serverFieldErrors = error?.response?.data?.errors;
         if (serverFieldErrors) {
           setFieldErrors(
             Object.fromEntries(
               Object.entries(serverFieldErrors).map(([field, messages]) => [
                 field,
-                Array.isArray(messages) ? messages[0] : messages,
+                Array.isArray(messages) ? messages : [messages],
               ])
             )
           );
@@ -97,11 +94,6 @@ const Customer = () => {
  
     const initials = (first, last) =>
       `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
- 
-    const inputClasses = (field) =>
-      `w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
-        fieldErrors[field] ? "border-red-300" : "border-slate-300"
-      }`;
  
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -180,69 +172,36 @@ const Customer = () => {
           )}
  
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                First name
-              </label>
-              <input
-                type="text"
-                value={firstName}
-                onChange={(e) => { setFirstName(e.target.value); clearFieldError("firstName"); }}
-                placeholder="Jane"
-                className={inputClasses("firstName")}
-              />
-              {fieldErrors.firstName && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.firstName}</p>
-              )}
-            </div>
- 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Last name
-              </label>
-              <input
-                type="text"
-                value={lastName}
-                onChange={(e) => { setLastName(e.target.value); clearFieldError("lastName"); }}
-                placeholder="Doe"
-                className={inputClasses("lastName")}
-              />
-              {fieldErrors.lastName && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.lastName}</p>
-              )}
-            </div>
- 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
-                placeholder="jane@example.com"
-                className={inputClasses("email")}
-              />
-              {fieldErrors.email && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
-              )}
-            </div>
- 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Phone
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => { setPhone(e.target.value); clearFieldError("phone"); }}
-                placeholder="(555) 123-4567"
-                className={inputClasses("phone")}
-              />
-              {fieldErrors.phone && (
-                <p className="mt-1 text-sm text-red-600">{fieldErrors.phone}</p>
-              )}
-            </div>
+            <FormField
+              label="First name"
+              value={firstName}
+              onChange={(e) => { setFirstName(e.target.value); clearFieldError("firstName"); }}
+              placeholder="Jane"
+              error={fieldErrors.firstName}
+            />
+            <FormField
+              label="Last name"
+              value={lastName}
+              onChange={(e) => { setLastName(e.target.value); clearFieldError("lastName"); }}
+              placeholder="Doe"
+              error={fieldErrors.lastName}
+            />
+            <FormField
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); clearFieldError("email"); }}
+              placeholder="jane@example.com"
+              error={fieldErrors.email}
+            />
+            <FormField
+              label="Phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value); clearFieldError("phone"); }}
+              placeholder="(555) 123-4567"
+              error={fieldErrors.phone}
+            />
           </div>
  
           <div className="mt-5 flex justify-end">
@@ -252,17 +211,8 @@ const Customer = () => {
               onClick={handleCreate}
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
-              {submitting ? (
-                <>
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>
-                  Creating...
-                </>
-              ) : (
-                "Create customer"
-              )}
+              {submitting && <Spinner />}
+              {submitting ? "Creating..." : "Create customer"}
             </button>
           </div>
         </section>

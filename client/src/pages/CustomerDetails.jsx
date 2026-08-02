@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCustomerById, updateCustomer, deleteCustomer } from '../services/customerService';
 import { getPropertiesByCustomer, createProperty } from '../services/propertyService';
-import { customerSchema, customerUpdateSchema } from '../schemas/customerSchema';
+import { customerUpdateSchema } from '../schemas/customerSchema';
 import { propertySchema } from '../schemas/propertySchema';
+import FormField from '../components/FormField';
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
+import Spinner from '../components/Spinner';
  
 const CustomerDetails = () => {
   const { id } = useParams();
@@ -36,7 +39,6 @@ const CustomerDetails = () => {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
-  const [poolType, setPoolType] = useState("");
  
   useEffect(() => {
     const fetchCustomer = async () => {
@@ -63,7 +65,6 @@ const CustomerDetails = () => {
       try {
         setPropertiesLoading(true);
         const response = await getPropertiesByCustomer(id);
-        console.log("Fetched properties:", response);
         // Handle APIs that wrap the array, e.g. { data: [...] } or { properties: [...] }
         const list = Array.isArray(response)
           ? response
@@ -83,9 +84,6 @@ const CustomerDetails = () => {
     fetchProperties();
   }, [id]);
  
-  const isFormValid = firstName.trim() && lastName.trim() && email.trim();
-  const isPropertyFormValid = address.trim();
- 
   const startEditing = () => {
     setError(null);
     setCustomerErrors({});
@@ -103,35 +101,25 @@ const CustomerDetails = () => {
  
   const handleSave = async () => {
     if (saving) return;
-
-    const validation = customerUpdateSchema.safeParse({
-      firstName,
-      lastName,
-      email,
-      phone,
-    });
-
+ 
+    const validation = customerUpdateSchema.safeParse({ firstName, lastName, email, phone });
+ 
     if (!validation.success) {
       setCustomerErrors(validation.error.flatten().fieldErrors);
       return;
     }
-
+ 
     try {
       setSaving(true);
       setError(null);
       setCustomerErrors({});
       const response = await updateCustomer(id, validation.data);
-      console.log("Update customer response:", response);
       const updated = response?.firstName
         ? response
         : response?.data?.firstName
           ? response.data
           : null;
-      if (updated) {
-        setCustomer(updated);
-      } else {
-        setCustomer((prev) => ({ ...prev, firstName, lastName, email, phone }));
-      }
+      setCustomer(updated || { ...customer, firstName, lastName, email, phone });
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating customer:", error);
@@ -160,27 +148,28 @@ const CustomerDetails = () => {
     setCity("");
     setState("");
     setZipCode("");
-    setPoolType("");
     setPropertyErrors({});
   };
  
   const handleAddProperty = async () => {
     if (addingProperty) return;
-
+ 
+    // Pool info is no longer collected here - it's its own step on the
+    // property's own page (PoolSection), since a property/pool is 1:1
+    // but created separately.
     const validation = propertySchema.safeParse({
       customerId: id,
       address,
       city,
       state,
       zip: zipCode,
-      poolType,
     });
-
+ 
     if (!validation.success) {
       setPropertyErrors(validation.error.flatten().fieldErrors);
       return;
     }
-
+ 
     try {
       setAddingProperty(true);
       setPropertiesError(null);
@@ -321,54 +310,32 @@ const CustomerDetails = () => {
             ) : (
               <div className="space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">First name</label>
-                    <input
-                      type="text"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.firstName ? 'border-red-400' : 'border-slate-300'}`}
-                    />
-                    {customerErrors.firstName && (
-                      <p className="mt-1 text-sm text-red-600">{customerErrors.firstName[0]}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Last name</label>
-                    <input
-                      type="text"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.lastName ? 'border-red-400' : 'border-slate-300'}`}
-                    />
-                    {customerErrors.lastName && (
-                      <p className="mt-1 text-sm text-red-600">{customerErrors.lastName[0]}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.email ? 'border-red-400' : 'border-slate-300'}`}
-                    />
-                    {customerErrors.email && (
-                      <p className="mt-1 text-sm text-red-600">{customerErrors.email[0]}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${customerErrors.phone ? 'border-red-400' : 'border-slate-300'}`}
-                    />
-                    {customerErrors.phone && (
-                      <p className="mt-1 text-sm text-red-600">{customerErrors.phone[0]}</p>
-                    )}
-                  </div>
+                  <FormField
+                    label="First name"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    error={customerErrors.firstName}
+                  />
+                  <FormField
+                    label="Last name"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    error={customerErrors.lastName}
+                  />
+                  <FormField
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    error={customerErrors.email}
+                  />
+                  <FormField
+                    label="Phone"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    error={customerErrors.phone}
+                  />
                 </div>
  
                 <div className="flex justify-end gap-2 pt-1">
@@ -381,15 +348,10 @@ const CustomerDetails = () => {
                   </button>
                   <button
                     onClick={handleSave}
-                    disabled={!isFormValid || saving}
+                    disabled={saving}
                     className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {saving && (
-                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                      </svg>
-                    )}
+                    {saving && <Spinner />}
                     {saving ? "Saving..." : "Save changes"}
                   </button>
                 </div>
@@ -427,72 +389,36 @@ const CustomerDetails = () => {
           {showAddProperty && (
             <div className="px-6 pt-5 pb-6 border-b border-slate-200 bg-slate-50">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
-                  <input
-                    type="text"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="123 Desert Ave"
-                    className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.address ? 'border-red-400' : 'border-slate-300'}`}
-                  />
-                  {propertyErrors.address && (
-                    <p className="mt-1 text-sm text-red-600">{propertyErrors.address[0]}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
-                  <input
-                    type="text"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder="Phoenix"
-                    className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.city ? 'border-red-400' : 'border-slate-300'}`}
-                  />
-                  {propertyErrors.city && (
-                    <p className="mt-1 text-sm text-red-600">{propertyErrors.city[0]}</p>
-                  )}
-                </div>
+                <FormField
+                  className="sm:col-span-2"
+                  label="Address"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="123 Desert Ave"
+                  error={propertyErrors.address}
+                />
+                <FormField
+                  label="City"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  placeholder="Phoenix"
+                  error={propertyErrors.city}
+                />
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
-                    <input
-                      type="text"
-                      value={state}
-                      onChange={(e) => setState(e.target.value)}
-                      placeholder="AZ"
-                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.state ? 'border-red-400' : 'border-slate-300'}`}
-                    />
-                    {propertyErrors.state && (
-                      <p className="mt-1 text-sm text-red-600">{propertyErrors.state[0]}</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">ZIP</label>
-                    <input
-                      type="text"
-                      value={zipCode}
-                      onChange={(e) => setZipCode(e.target.value)}
-                      placeholder="85001"
-                      className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.zip ? 'border-red-400' : 'border-slate-300'}`}
-                    />
-                    {propertyErrors.zip && (
-                      <p className="mt-1 text-sm text-red-600">{propertyErrors.zip[0]}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Pool type</label>
-                  <input
-                    type="text"
-                    value={poolType}
-                    onChange={(e) => setPoolType(e.target.value)}
-                    placeholder="Gunite, saltwater, etc."
-                    className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${propertyErrors.poolType ? 'border-red-400' : 'border-slate-300'}`}
+                  <FormField
+                    label="State"
+                    value={state}
+                    onChange={(e) => setState(e.target.value)}
+                    placeholder="AZ"
+                    error={propertyErrors.state}
                   />
-                  {propertyErrors.poolType && (
-                    <p className="mt-1 text-sm text-red-600">{propertyErrors.poolType[0]}</p>
-                  )}
+                  <FormField
+                    label="ZIP"
+                    value={zipCode}
+                    onChange={(e) => setZipCode(e.target.value)}
+                    placeholder="85001"
+                    error={propertyErrors.zip}
+                  />
                 </div>
               </div>
  
@@ -509,15 +435,10 @@ const CustomerDetails = () => {
                 </button>
                 <button
                   onClick={handleAddProperty}
-                  disabled={!isPropertyFormValid || addingProperty}
+                  disabled={addingProperty}
                   className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {addingProperty && (
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                    </svg>
-                  )}
+                  {addingProperty && <Spinner />}
                   {addingProperty ? "Adding..." : "Add property"}
                 </button>
               </div>
@@ -557,8 +478,7 @@ const CustomerDetails = () => {
                         {property.address || "Untitled property"}
                       </p>
                       <p className="text-sm text-slate-500 truncate">
-                        {[property.city, property.state].filter(Boolean).join(", ")}
-                        {property.poolType ? ` · ${property.poolType}` : ""}
+                        {[property.city, property.state].filter(Boolean).join(", ") || "—"}
                       </p>
                     </div>
                     <svg
@@ -575,44 +495,15 @@ const CustomerDetails = () => {
         </section>
       </div>
  
-      {/* Delete confirmation modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-          <div
-            className="absolute inset-0 bg-slate-900/40"
-            onClick={() => !deleting && setShowDeleteConfirm(false)}
-          />
-          <div className="relative bg-white rounded-xl shadow-xl max-w-sm w-full p-6">
-            <h3 className="text-base font-semibold text-slate-900">
-              Delete {customer.firstName} {customer.lastName}?
-            </h3>
-            <p className="mt-2 text-sm text-slate-500">
-              This can't be undone. This customer's record will be permanently removed.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                disabled={deleting}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-red-500 disabled:opacity-50 transition-colors"
-              >
-                {deleting && (
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>
-                )}
-                {deleting ? "Deleting..." : "Delete customer"}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDeleteModal
+          title={`Delete ${customer.firstName} ${customer.lastName}?`}
+          message="This can't be undone. This customer's record will be permanently removed."
+          confirmLabel="Delete customer"
+          loading={deleting}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       )}
     </div>
   )

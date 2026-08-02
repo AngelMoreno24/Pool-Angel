@@ -25,10 +25,4 @@ export const propertySchema = z.object({
     .max(20, "ZIP code is too long")
     .optional()
     .or(z.literal("")),
-  poolType: z
-    .string()
-    .trim()
-    .max(100, "Pool type is too long")
-    .optional()
-    .or(z.literal("")),
 });
