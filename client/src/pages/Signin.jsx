@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { signinSchema } from '../schemas/authSchema';
  
 // Demo account credentials — swap these for your actual demo user
 const DEMO_EMAIL = 'asd@asd.com';
@@ -13,6 +14,7 @@ const Signin = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [fieldErrors, setFieldErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [demoLoading, setDemoLoading] = useState(false);
  
@@ -21,8 +23,17 @@ const Signin = () => {
  
     const performSignin = async (signinEmail, signinPassword) => {
         setError('');
+        setFieldErrors({});
+
+        const validation = signinSchema.safeParse({ email: signinEmail, password: signinPassword });
+
+        if (!validation.success) {
+            setFieldErrors(validation.error.flatten().fieldErrors);
+            return;
+        }
+
         try {
-            const result = await signInUser(signinEmail, signinPassword);
+            const result = await signInUser(validation.data.email, validation.data.password);
             if (result?.success) {
                 await api.post(
                     "/auth/sync",
@@ -80,11 +91,14 @@ const Signin = () => {
                         <input
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${fieldErrors.email ? 'border-red-400' : 'border-slate-300'}`}
                             type="email"
                             placeholder="you@example.com"
                             autoComplete="email"
                         />
+                        {fieldErrors.email && (
+                            <p className="mt-1 text-sm text-red-600">{fieldErrors.email[0]}</p>
+                        )}
                     </div>
  
                     <div>
@@ -94,11 +108,14 @@ const Signin = () => {
                         <input
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${fieldErrors.password ? 'border-red-400' : 'border-slate-300'}`}
                             type="password"
                             placeholder="••••••••"
                             autoComplete="current-password"
                         />
+                        {fieldErrors.password && (
+                            <p className="mt-1 text-sm text-red-600">{fieldErrors.password[0]}</p>
+                        )}
                     </div>
  
                     {error && (
