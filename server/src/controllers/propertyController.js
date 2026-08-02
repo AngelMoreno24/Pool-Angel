@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
+import { createError } from "../middleware/errorHandler.js";
 
-export const createProperty = async (req, res) => {
+export const createProperty = async (req, res, next) => {
 
     try {
 
@@ -9,11 +10,11 @@ export const createProperty = async (req, res) => {
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!customerId || !companyId || !address) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
         
         const customer = await prisma.customer.findFirst({
@@ -24,51 +25,46 @@ export const createProperty = async (req, res) => {
         });
 
         if (!customer) {
-            return res.status(404).json({
-                error: "Customer not found",
-            });
+            return next(createError("Customer not found", 404));
         }
 
         const property = await prisma.property.create({
-        data: {
-            customerId,
-            companyId,
-            address,
-            city,
-            state,
-            zip
-        },
+            data: {
+                customerId,
+                companyId,
+                address,
+                city,
+                state,
+                zip,
+            },
         });
 
         return res.status(201).json(property);
-    }catch (error) { 
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to create property", 500, error.message));
     }
 
-}
+};
 
-export const getProperties = async (req, res) => {
+export const getProperties = async (req, res, next) => {
 
     try {
-
-
         const { customerId } = req.params;
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!customerId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
     
         const properties = await prisma.property.findMany({
-            where: 
-                { 
-                    companyId: companyId,
-                    customerId: customerId
+            where: {
+                companyId,
+                customerId,
             },
         });
 
@@ -76,131 +72,112 @@ export const getProperties = async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to fetch properties", 500, error.message));
     }
-}
+};
 
-export const getProperty = async (req, res) => {
+export const getProperty = async (req, res, next) => {
 
     try {
-
-
         const { propertyId } = req.params;
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!propertyId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
     
         const property = await prisma.property.findFirst({
-            where: 
-                { 
-                    id: propertyId,
-                    companyId: companyId,
+            where: {
+                id: propertyId,
+                companyId,
             },
         });
 
         if (!property) {
-            return res.status(404).json({
-                error: "Property not found",
-            });
+            return next(createError("Property not found", 404));
         }
 
         return res.status(200).json(property);
 
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to fetch property", 500, error.message));
     }
-}
+};
 
-
-export const updateProperty = async (req, res) => {
+export const updateProperty = async (req, res, next) => {
 
     try {
-
         const { propertyId } = req.params;
-
         const { address, city, state, zip } = req.body;
-
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!propertyId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
     
-        
         const result = await prisma.property.updateMany({
             where: {
                 id: propertyId,
-                companyId: companyId,
+                companyId,
             },
             data: {
                 address,
                 city,
                 state,
-                zip
+                zip,
             },
         });
 
         if (result.count === 0) {
-            return res.status(404).json({
-                error: "Property not found",
-            });
+            return next(createError("Property not found", 404));
         }
 
-        return res.status(200).json({  message: "Property updated successfully" });
+        return res.status(200).json({ message: "Property updated successfully" });
 
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to update property", 500, error.message));
     }
-}
+};
 
-
-
-export const deleteProperty = async (req, res) => {
+export const deleteProperty = async (req, res, next) => {
 
     try {
-
         const { propertyId } = req.params;
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!propertyId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
-
 
         const result = await prisma.property.deleteMany({
             where: {
                 id: propertyId,
-                companyId: companyId,
+                companyId,
             },
         });
 
         if (result.count === 0) {
-            return res.status(404).json({
-                error: "Property not found",
-            });
+            return next(createError("Property not found", 404));
         }
 
-
-        return res.status(200).json({  message: "Property deleted successfully" });
-    }catch (error) { 
+        return res.status(200).json({ message: "Property deleted successfully" });
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to delete property", 500, error.message));
     }
 
-}
+};

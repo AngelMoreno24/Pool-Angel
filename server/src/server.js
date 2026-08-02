@@ -6,6 +6,7 @@ import authRoutes from "./routes/authRoutes.js";
 import customerRoutes from "./routes/customerRoutes.js";
 import propertyRoutes from "./routes/propertyRoutes.js";
 import poolRoutes from "./routes/poolRoutes.js";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 dotenv.config();
 
@@ -30,6 +31,8 @@ app.use("/auth", authRoutes);
 app.use("/customers", customerRoutes);
 app.use("/properties", propertyRoutes);
 app.use("/pools", poolRoutes);
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 

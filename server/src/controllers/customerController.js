@@ -1,8 +1,8 @@
 import prisma from "../lib/prisma.js";
+import { createError } from "../middleware/errorHandler.js";
  
-export const createCustomer = async (req, res) => {
+export const createCustomer = async (req, res, next) => {
  
-    console.log("called createCustomer controller")
     try {
  
         const { firstName, lastName, email, phone } = req.body;
@@ -10,55 +10,49 @@ export const createCustomer = async (req, res) => {
         const { companyId, role } = req.user;
  
         if (!companyId || role !== "OWNER") {
-            console.log("User is not authorized to create customer");
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
  
         const customer = await prisma.customer.create({
-        data: {
-            firstName,
-            lastName,
-            email,
-            phone,
-            companyId
-        },
+            data: {
+                firstName,
+                lastName,
+                email,
+                phone,
+                companyId,
+            },
         });
  
         return res.status(201).json(customer);
-    }catch (error) { 
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to create customer", 500, error.message));
     }
  
-}
+};
  
-export const getCustomers = async (req, res) => {
+export const getCustomers = async (req, res, next) => {
  
     try {
-        console.log("getCustomers controller called");
- 
         const { companyId, role } = req.user;
  
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
  
         const customers = await prisma.customer.findMany({
-            where: 
-                { companyId: companyId
-            },
+            where: { companyId },
         });
         return res.status(200).json(customers);
-    }catch (error) { 
+    } catch (error) {
         console.error(error);
-        console.log("Error in getCustomers:", error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to fetch customers", 500, error.message));
     }
  
-}
+};
  
  
-export const getCustomer = async (req, res) => {
+export const getCustomer = async (req, res, next) => {
  
     try {
  
@@ -67,30 +61,31 @@ export const getCustomer = async (req, res) => {
         const { companyId, role } = req.user;
  
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
  
         if (!customerId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
     
         const customer = await prisma.customer.findUnique({
-            where: 
-                { 
-                    id: customerId
-                },
+            where: { id: customerId },
         });
+
+        if (!customer) {
+            return next(createError("Customer not found", 404));
+        }
  
         return res.status(200).json(customer);
-    }catch (error) { 
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to fetch customer", 500, error.message));
     }
  
-}
+};
  
  
-export const updateCustomer = async (req, res) => {
+export const updateCustomer = async (req, res, next) => {
  
     try {
  
@@ -101,13 +96,12 @@ export const updateCustomer = async (req, res) => {
         const { companyId, role } = req.user;
  
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
  
         if (!customerId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
- 
  
         const result = await prisma.customer.updateMany({
             where: {
@@ -123,23 +117,19 @@ export const updateCustomer = async (req, res) => {
         });
  
         if (result.count === 0) {
-            return res.status(404).json({
-                error: "Customer not found",
-            });
+            return next(createError("Customer not found", 404));
         }
  
- 
-        return res.status(200).json({  message: "Customer updated successfully" });
-    }catch (error) { 
+        return res.status(200).json({ message: "Customer updated successfully" });
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to update customer", 500, error.message));
     }
  
-}
+};
  
  
- 
-export const deleteCustomer = async (req, res) => {
+export const deleteCustomer = async (req, res, next) => {
  
     try {
  
@@ -147,13 +137,12 @@ export const deleteCustomer = async (req, res) => {
         const { companyId, role } = req.user;
  
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
  
         if (!customerId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
- 
  
         const result = await prisma.customer.deleteMany({
             where: {
@@ -163,16 +152,13 @@ export const deleteCustomer = async (req, res) => {
         });
  
         if (result.count === 0) {
-            return res.status(404).json({
-                error: "Customer not found",
-            });
+            return next(createError("Customer not found", 404));
         }
  
- 
-        return res.status(200).json({  message: "Customer deleted successfully" });
-    }catch (error) { 
+        return res.status(200).json({ message: "Customer deleted successfully" });
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to delete customer", 500, error.message));
     }
  
-}
+};

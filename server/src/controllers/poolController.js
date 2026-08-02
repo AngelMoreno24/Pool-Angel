@@ -1,22 +1,20 @@
 import prisma from "../lib/prisma.js";
+import { createError } from "../middleware/errorHandler.js";
 
-export const createPool = async (req, res) => {
+export const createPool = async (req, res, next) => {
 
     try {
-
         const { propertyId, type, size, notes } = req.body;
-
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!propertyId || !companyId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
 
-        //check if property exists
         const property = await prisma.property.findFirst({
             where: {
                 id: propertyId,
@@ -25,12 +23,9 @@ export const createPool = async (req, res) => {
         });
 
         if (!property) {
-            return res.status(404).json({
-                error: "Property not found",
-            });
+            return next(createError("Property not found", 404));
         }
 
-        //check if a pool already exists
         const existingPool = await prisma.pool.findFirst({
             where: {
                 propertyId,
@@ -38,50 +33,45 @@ export const createPool = async (req, res) => {
         });
 
         if (existingPool) {
-            return res.status(409).json({
-                error: "This property already has a pool.",
-            });
+            return next(createError("This property already has a pool.", 409));
         }
 
         const pool = await prisma.pool.create({
-        data: {
-            propertyId,
-            companyId,
-            type,
-            size,
-            notes
-        },
+            data: {
+                propertyId,
+                companyId,
+                type,
+                size,
+                notes,
+            },
         });
 
         return res.status(201).json(pool);
-    }catch (error) { 
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to create pool", 500, error.message));
     }
 
-}
+};
 
-export const getPool = async (req, res) => {
+export const getPool = async (req, res, next) => {
 
     try {
-
-
         const { propertyId } = req.params;
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!propertyId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
     
         const pool = await prisma.pool.findFirst({
-            where: 
-                { 
-                    propertyId: propertyId,
-                    companyId: companyId,
+            where: {
+                propertyId,
+                companyId,
             },
             include: {
                 property: true,
@@ -89,104 +79,86 @@ export const getPool = async (req, res) => {
         });
 
         if (!pool) {
-            return res.status(404).json({
-                error: "Pool not found",
-            });
+            return next(createError("Pool not found", 404));
         }
 
         return res.status(200).json(pool);
 
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to fetch pool", 500, error.message));
     }
 
-}
+};
 
-
-
-
-export const updatePool = async (req, res) => {
+export const updatePool = async (req, res, next) => {
 
     try {
-
         const { poolId } = req.params;
-
         const { type, size, notes } = req.body;
-
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!poolId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
     
-        
         const result = await prisma.pool.updateMany({
             where: {
                 id: poolId,
-                companyId: companyId,
+                companyId,
             },
             data: {
                 type,
                 size,
-                notes
+                notes,
             },
         });
 
         if (result.count === 0) {
-            return res.status(404).json({
-                error: "Pool not found",
-            });
+            return next(createError("Pool not found", 404));
         }
 
-        return res.status(200).json({  message: "Pool updated successfully" });
+        return res.status(200).json({ message: "Pool updated successfully" });
 
     } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to update pool", 500, error.message));
     }
-}
+};
 
-
-
-export const deletePool = async (req, res) => {
+export const deletePool = async (req, res, next) => {
 
     try {
-
         const { poolId } = req.params;
         const { companyId, role } = req.user;
 
         if (!companyId || role !== "OWNER") {
-            return res.status(403).json({ error: "Forbidden" });
+            return next(createError("Forbidden", 403));
         }
 
         if (!poolId) {
-            return res.status(400).json({ error: "Missing required fields" });
+            return next(createError("Missing required fields", 400));
         }
-
 
         const result = await prisma.pool.deleteMany({
             where: {
                 id: poolId,
-                companyId: companyId,
+                companyId,
             },
         });
 
         if (result.count === 0) {
-            return res.status(404).json({
-                error: "Pool not found",
-            });
+            return next(createError("Pool not found", 404));
         }
 
-
-        return res.status(200).json({  message: "Pool deleted successfully" });
-    }catch (error) { 
+        return res.status(200).json({ message: "Pool deleted successfully" });
+    } catch (error) {
         console.error(error);
-        return res.status(500).json({ error: "Internal server error" });
+        return next(createError("Failed to delete pool", 500, error.message));
     }
 
-}
+};
