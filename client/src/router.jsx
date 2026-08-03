@@ -11,6 +11,7 @@ import Pools from './pages/Pools';
 import ProtectedLayout from './pages/ProtectedLayout';
 import CustomerDetails from './pages/CustomerDetails';
 import PropertyDetails from './pages/PropertyDetails';
+import Technicians from './pages/Technicians';
 
 export const router = createBrowserRouter([
   {
@@ -51,6 +52,10 @@ export const router = createBrowserRouter([
       {
         path: "/pools",
         element: <Pools />,
+      },
+      {
+        path: "/technicians",
+        element: <Technicians />,
       },
     ],
   },

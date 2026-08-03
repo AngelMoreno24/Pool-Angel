@@ -7,7 +7,7 @@ import customerRoutes from "./routes/customerRoutes.js";
 import propertyRoutes from "./routes/propertyRoutes.js";
 import poolRoutes from "./routes/poolRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
-
+import techRoutes from "./routes/authRoutes.js"
 dotenv.config();
 
 const app = express();
