@@ -34,6 +34,14 @@ model User {
 
   ownedCompany Company? @relation("CompanyOwner")
 
+  // Jobs where this user is the default assigned tech (independent of any
+  // individual Visit's own assignment - see Visit.assignedTech below)
+  defaultJobs Job[]   @relation("DefaultTechForJob")
+
+  // Individual visits assigned to this user - a tech looks here to see
+  // "what's on my schedule", not at Job directly
+  assignedVisits Visit[] @relation("AssignedTechForVisit")
+
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -51,6 +59,8 @@ model Company {
   customers Customer[]
   properties Property[]
   pools Pool[]
+  jobs Job[]
+  visits Visit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -68,6 +78,7 @@ model Customer {
   email      String?
 
   properties Property[]
+  jobs       Job[]
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -91,6 +102,7 @@ model Property {
   zip         String?
 
   pool        Pool?
+  jobs        Job[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -112,8 +124,128 @@ model Pool {
   size        String?
   notes       String?
 
+  jobs        Job[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([companyId])
+}
+
+// ── Job ──────────────────────────────────────────────────────────────
+// The recurring or one-time work agreement - a template, not a single
+// day of work. "Weekly pool cleaning for 123 Desert Ave."
+model Job {
+  id          String   @id @default(uuid())
+
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+
+  propertyId  String
+  property    Property @relation(fields: [propertyId], references: [id])
+
+  poolId      String?
+  pool        Pool?    @relation(fields: [poolId], references: [id])
+
+  title       String              // "Weekly Pool Cleaning", "One-Time Filter Repair"
+  jobType     JobType  @default(RECURRING_CLEANING)
+  frequency   Frequency?          // null for ONE_TIME jobs
+  status      JobStatus @default(ACTIVE)
+
+  // Default tech visits are generated with - each individual Visit can
+  // still be reassigned without changing this.
+  defaultTechId String?
+  defaultTech    User?  @relation("DefaultTechForJob", fields: [defaultTechId], references: [id])
+
+  startDate   DateTime            // first occurrence
+  endDate     DateTime?           // null = runs indefinitely until paused/cancelled
+
+  price       Decimal?  @db.Decimal(10, 2)
+  notes       String?
+
+  visits      Visit[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([propertyId])
+}
+
+enum JobType {
+  RECURRING_CLEANING
+  ONE_TIME_SERVICE
+  REPAIR
+  CHEMICAL_BALANCE
+}
+
+enum Frequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  ONE_TIME
+}
+
+enum JobStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELLED
+}
+
+
+// ── Visit ────────────────────────────────────────────────────────────
+// A single scheduled occurrence, generated from a Job. This is the row
+// that actually gets scheduled, reassigned, completed, or skipped -
+// "today's job statuses" and route planning both query THIS table,
+// never the Job template directly.
+model Visit {
+  id          String   @id @default(uuid())
+
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id])
+
+  assignedTechId String?
+  assignedTech    User?  @relation("AssignedTechForVisit", fields: [assignedTechId], references: [id])
+
+  scheduledDate DateTime            // the day this visit is scheduled for
+  scheduledTime String?             // e.g. "8:00 AM - 10:00 AM" - free text window is fine for v1
+
+  status      VisitStatus @default(SCHEDULED)
+
+  checkInAt   DateTime?
+  checkOutAt  DateTime?
+
+  notes       String?
+  // Chemical readings, checklist results, photos - start simple as JSON,
+  // split into their own model later once you know what fields you
+  // actually need to query/report on individually.
+  serviceData Json?
+
+  // Where this visit sits in a tech's route for the day. A plain int on
+  // Visit is enough for v1 - see the note on Route planning for when to
+  // upgrade this into its own model.
+  routeOrder  Int?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([jobId])
+  @@index([assignedTechId, scheduledDate])
+}
+
+enum VisitStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+  CANCELLED
 }
