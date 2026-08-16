@@ -12,6 +12,7 @@ import ProtectedLayout from './pages/ProtectedLayout';
 import CustomerDetails from './pages/CustomerDetails';
 import PropertyDetails from './pages/PropertyDetails';
 import Technicians from './pages/Technicians';
+import TechnicianDetails from './pages/TechnicianDetails';
 
 export const router = createBrowserRouter([
   {
@@ -56,6 +57,10 @@ export const router = createBrowserRouter([
       {
         path: "/technicians",
         element: <Technicians />,
+      },
+      {
+        path: "/technicians/:id",
+        element: <TechnicianDetails />,
       },
     ],
   },
