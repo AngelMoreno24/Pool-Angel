@@ -13,11 +13,13 @@ import CustomerDetails from './pages/CustomerDetails';
 import PropertyDetails from './pages/PropertyDetails';
 import Technicians from './pages/Technicians';
 import TechnicianDetails from './pages/TechnicianDetails';
+import Job from './pages/Job';
+import JobDetails from './pages/JobDetails';
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    element: <Signup />,
+    element: <Signin />,
   },
   {
     path: "/signup",
@@ -61,6 +63,14 @@ export const router = createBrowserRouter([
       {
         path: "/technicians/:id",
         element: <TechnicianDetails />,
+      },
+      {
+        path: "/jobs",
+        element: <Job />,
+      },
+      {
+        path: "/jobs/:id",
+        element: <JobDetails />,
       },
     ],
   },

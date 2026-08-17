@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCustomerById, updateCustomer, deleteCustomer } from '../services/customerService';
 import { getPropertiesByCustomer, createProperty } from '../services/propertyService';
+import { getjob, createjob } from '../services/jobService';
 import { customerUpdateSchema } from '../schemas/customerSchema';
 import { propertySchema } from '../schemas/propertySchema';
 import FormField from '../components/FormField';
@@ -39,6 +40,23 @@ const CustomerDetails = () => {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zipCode, setZipCode] = useState("");
+
+  // Jobs
+  const [jobs, setJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  const [jobsError, setJobsError] = useState(null);
+  const [showCreateJob, setShowCreateJob] = useState(false);
+  const [creatingJob, setCreatingJob] = useState(false);
+  const [jobFormErrors, setJobFormErrors] = useState({});
+  const [jobTitle, setJobTitle] = useState("");
+  const [jobJobType, setJobJobType] = useState("RECURRING_CLEANING");
+  const [jobFrequency, setJobFrequency] = useState("WEEKLY");
+  const [jobPropertyId, setJobPropertyId] = useState("");
+  const [jobStartDate, setJobStartDate] = useState("");
+  const [jobStatus, setJobStatus] = useState("ACTIVE");
+  const [jobEndDate, setJobEndDate] = useState("");
+  const [jobPrice, setJobPrice] = useState("");
+  const [jobNotes, setJobNotes] = useState("");
  
   useEffect(() => {
     const fetchCustomer = async () => {
@@ -82,6 +100,25 @@ const CustomerDetails = () => {
       }
     }
     fetchProperties();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        setJobsLoading(true);
+        const response = await getjob();
+        const allJobs = Array.isArray(response) ? response : response?.data || [];
+        // Filter jobs for this customer
+        const customerJobs = allJobs.filter(job => job.customerId === id);
+        setJobs(customerJobs);
+      } catch (error) {
+        console.error("Error fetching jobs:", error);
+        setJobsError("Couldn't load jobs for this customer.");
+      } finally {
+        setJobsLoading(false);
+      }
+    }
+    fetchJobs();
   }, [id]);
  
   const startEditing = () => {
@@ -183,6 +220,61 @@ const CustomerDetails = () => {
       setPropertiesError("Couldn't add that property. Please try again.");
     } finally {
       setAddingProperty(false);
+    }
+  };
+
+  const resetJobForm = () => {
+    setJobTitle("");
+    setJobJobType("RECURRING_CLEANING");
+    setJobFrequency("WEEKLY");
+    setJobPropertyId("");
+    setJobStartDate("");
+    setJobStatus("ACTIVE");
+    setJobEndDate("");
+    setJobPrice("");
+    setJobNotes("");
+    setJobFormErrors({});
+  };
+
+  const handleCreateJob = async () => {
+    if (creatingJob) return;
+
+    if (!jobTitle.trim() || !jobPropertyId || !jobStartDate) {
+      setJobFormErrors({
+        jobTitle: !jobTitle.trim() ? ["Title is required"] : undefined,
+        jobPropertyId: !jobPropertyId ? ["Property is required"] : undefined,
+        jobStartDate: !jobStartDate ? ["Start date is required"] : undefined,
+      });
+      return;
+    }
+
+    try {
+      setCreatingJob(true);
+      setJobsError(null);
+      setJobFormErrors({});
+      
+      const jobData = {
+        customerId: id,
+        propertyId: jobPropertyId,
+        title: jobTitle.trim(),
+        jobType: jobJobType,
+        frequency: jobFrequency,
+        startDate: new Date(jobStartDate),
+        status: jobStatus,
+        ...(jobEndDate && { endDate: new Date(jobEndDate) }),
+        ...(jobPrice && { price: parseFloat(jobPrice) }),
+        ...(jobNotes && { notes: jobNotes.trim() }),
+      };
+      
+      const newJob = await createjob(jobData);
+      setJobs([...jobs, newJob]);
+      resetJobForm();
+      setShowCreateJob(false);
+    } catch (error) {
+      console.error("Error creating job:", error);
+      setJobsError("Couldn't create that job. Please try again.");
+    } finally {
+      setCreatingJob(false);
     }
   };
  
@@ -487,6 +579,179 @@ const CustomerDetails = () => {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* Jobs section */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
+            <h2 className="text-base font-semibold text-slate-900">
+              Jobs {!jobsLoading && (
+                <span className="text-slate-400 font-normal">({jobs.length})</span>
+              )}
+            </h2>
+            <button
+              onClick={() => setShowCreateJob((v) => !v)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              {showCreateJob ? "Cancel" : "Create job"}
+            </button>
+          </div>
+
+          {jobsError && (
+            <div className="mx-6 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {jobsError}
+            </div>
+          )}
+
+          {/* Create job form */}
+          {showCreateJob && (
+            <div className="px-6 pt-5 pb-6 border-b border-slate-200 bg-slate-50">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormField
+                  label="Title"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  placeholder="Weekly cleaning"
+                  error={jobFormErrors.jobTitle}
+                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-900 mb-1">Property</label>
+                  <select
+                    value={jobPropertyId}
+                    onChange={(e) => setJobPropertyId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">Select a property</option>
+                    {properties.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.address}
+                      </option>
+                    ))}
+                  </select>
+                  {jobFormErrors.jobPropertyId && (
+                    <p className="mt-1 text-sm text-red-600">{jobFormErrors.jobPropertyId[0]}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-900 mb-1">Job Type</label>
+                  <select
+                    value={jobJobType}
+                    onChange={(e) => setJobJobType(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="RECURRING_CLEANING">Recurring Cleaning</option>
+                    <option value="ONE_TIME_SERVICE">One Time Service</option>
+                    <option value="REPAIR">Repair</option>
+                    <option value="CHEMICAL_BALANCE">Chemical Balance</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-900 mb-1">Frequency</label>
+                  <select
+                    value={jobFrequency}
+                    onChange={(e) => setJobFrequency(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="WEEKLY">Weekly</option>
+                    <option value="BIWEEKLY">Biweekly</option>
+                    <option value="MONTHLY">Monthly</option>
+                    <option value="ONE_TIME">One Time</option>
+                  </select>
+                </div>
+                <FormField
+                  label="Start Date"
+                  type="date"
+                  value={jobStartDate}
+                  onChange={(e) => setJobStartDate(e.target.value)}
+                  error={jobFormErrors.jobStartDate}
+                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-900 mb-1">Status</label>
+                  <select
+                    value={jobStatus}
+                    onChange={(e) => setJobStatus(e.target.value)}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="PAUSED">Paused</option>
+                    <option value="COMPLETED">Completed</option>
+                    <option value="CANCELLED">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  onClick={() => {
+                    setShowCreateJob(false);
+                    resetJobForm();
+                  }}
+                  disabled={creatingJob}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateJob}
+                  disabled={creatingJob}
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {creatingJob && <Spinner />}
+                  {creatingJob ? "Creating..." : "Create job"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Jobs list */}
+          {jobsLoading ? (
+            <ul className="divide-y divide-slate-100">
+              {[...Array(2)].map((_, i) => (
+                <li key={i} className="px-6 py-4 flex items-center gap-3 animate-pulse">
+                  <div className="h-4 w-48 bg-slate-200 rounded" />
+                </li>
+              ))}
+            </ul>
+          ) : jobs.length === 0 ? (
+            <div className="px-6 py-10 text-center">
+              <p className="text-sm text-slate-500">No jobs yet.</p>
+              <p className="text-sm text-slate-400 mt-1">Create a job for this customer.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {jobs.map((job) => (
+                <li key={job.id}>
+                  <Link
+                    to={`/jobs/${job.id}`}
+                    className="px-6 py-4 flex items-center justify-between gap-3 hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {job.title}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate mt-0.5">
+                        {job.frequency || "—"} • {job.jobType}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
+                        {job.status || "ACTIVE"}
+                      </span>
+                      <svg
+                        className="h-4 w-4 text-slate-300"
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </Link>
                 </li>
               ))}

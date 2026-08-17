@@ -8,6 +8,9 @@ import propertyRoutes from "./routes/propertyRoutes.js";
 import poolRoutes from "./routes/poolRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import techRoutes from "./routes/authRoutes.js"
+import jobRoutes from "./routes/jobRoutes.js"
+import visitRoutes from "./routes/visitRoutes.js"
+
 dotenv.config();
 
 const app = express();
@@ -31,6 +34,9 @@ app.use("/auth", authRoutes);
 app.use("/customers", customerRoutes);
 app.use("/properties", propertyRoutes);
 app.use("/pools", poolRoutes);
+app.use("/techs", techRoutes);
+app.use("/jobs", jobRoutes);
+app.use("/visits", visitRoutes);
 
 app.use(errorHandler);
 
