@@ -1,27 +1,82 @@
 import { PrismaClient } from '@prisma/client';
+import { adminSupabase } from '../src/lib/supabase.js';
 
 const prisma = new PrismaClient();
+
+async function findSupabaseUserByEmail(email) {
+  if (!adminSupabase) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured. Add it to the server .env file.');
+  }
+
+  const { data, error } = await adminSupabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+
+  if (error) {
+    throw error;
+  }
+
+  return data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase()) ?? null;
+}
+
+async function ensureSupabaseUser({ email, password, firstName, lastName, role }) {
+  if (!adminSupabase) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is not configured. Add it to the server .env file.');
+  }
+
+  const existing = await findSupabaseUserByEmail(email);
+  if (existing) {
+    console.log(`↩️ Existing Supabase user found: ${email}`);
+    return existing;
+  }
+
+  const { data, error } = await adminSupabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { firstName, lastName, role },
+    app_metadata: { role },
+  });
+
+  if (error || !data?.user) {
+    throw new Error(error?.message || `Failed to create Supabase auth user for ${email}`);
+  }
+
+  console.log(`✓ Supabase auth user created: ${email}`);
+  return data.user;
+}
 
 async function seedDemo() {
   try {
     console.log('🌱 Starting demo data seeding...\n');
 
+    const ownerAuth = await ensureSupabaseUser({
+      email: 'demo@poolangel.com',
+      password: 'DemoPass123!',
+      firstName: 'Demo',
+      lastName: 'Owner',
+      role: 'OWNER',
+    });
+
     // ─────────────────────────────────────
     // 1. Create Demo Owner/User
     // ─────────────────────────────────────
-    console.log('📝 Creating demo owner...');
+    console.log('📝 Creating demo owner in Prisma...');
     const demoOwner = await prisma.user.upsert({
-      where: { email: 'demo@poolangel.com' },
-      update: {},
+      where: { authId: ownerAuth.id },
+      update: {
+        email: ownerAuth.email,
+        firstName: 'Demo',
+        lastName: 'Owner',
+        role: 'OWNER',
+      },
       create: {
-        authId: 'demo-owner-auth-123',
-        email: 'demo@poolangel.com',
+        authId: ownerAuth.id,
+        email: ownerAuth.email || 'demo@poolangel.com',
         firstName: 'Demo',
         lastName: 'Owner',
         role: 'OWNER',
       },
     });
-    console.log(`✓ Owner created: ${demoOwner.email}\n`);
+    console.log(`✓ Owner synced: ${demoOwner.email}\n`);
 
     // ─────────────────────────────────────
     // 2. Create Demo Company
@@ -37,16 +92,36 @@ async function seedDemo() {
     });
     console.log(`✓ Company created: ${demoCompany.name}\n`);
 
+    const ownerCompanyUpdate = await prisma.user.update({
+      where: { id: demoOwner.id },
+      data: { companyId: demoCompany.id },
+    });
+    console.log(`✓ Owner company linked: ${ownerCompanyUpdate.email}\n`);
+
     // ─────────────────────────────────────
     // 3. Create Demo Technician
     // ─────────────────────────────────────
     console.log('👨‍🔧 Creating demo technician...');
+    const techAuth = await ensureSupabaseUser({
+      email: 'tech@poolangel.com',
+      password: 'TechPass123!',
+      firstName: 'John',
+      lastName: 'Technician',
+      role: 'TECH',
+    });
+
     const demoTech = await prisma.user.upsert({
-      where: { email: 'tech@poolangel.com' },
-      update: {},
+      where: { authId: techAuth.id },
+      update: {
+        email: techAuth.email,
+        firstName: 'John',
+        lastName: 'Technician',
+        role: 'TECH',
+        companyId: demoCompany.id,
+      },
       create: {
-        authId: 'demo-tech-auth-456',
-        email: 'tech@poolangel.com',
+        authId: techAuth.id,
+        email: techAuth.email || 'tech@poolangel.com',
         firstName: 'John',
         lastName: 'Technician',
         role: 'TECH',
