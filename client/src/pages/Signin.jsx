@@ -6,8 +6,8 @@ import api from '../api/axios';
 import { signinSchema } from '../schemas/authSchema';
  
 // Demo account credentials — swap these for your actual demo user
-const DEMO_EMAIL = 'asd@asd.com';
-const DEMO_PASSWORD = 'asdasd';
+const DEMO_EMAIL = 'demo@poolangel.com';
+const DEMO_PASSWORD = 'demo@poolangel.com';
  
 const Signin = () => {
  

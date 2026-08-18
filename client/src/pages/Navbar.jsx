@@ -7,7 +7,6 @@ const NAV_LINKS = [
   { to: "/customers", label: "Customers" },
   { to: "/technicians", label: "Technicians" },
   { to: "/jobs", label: "Jobs" },
-  { to: "/settings", label: "Settings" },
 ];
  
 const Navbar = () => {
