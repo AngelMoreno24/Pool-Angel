@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getjob, createjob } from '../services/jobService';
 import { getCustomers } from '../services/customerService';
 import { getPropertiesByCustomer } from '../services/propertyService';
+import { getTechs } from '../services/techService';
 import FormField from '../components/FormField';
 import Spinner from '../components/Spinner';
 
@@ -13,6 +14,7 @@ const Job = () => {
   const [customers, setCustomers] = useState([]);
   const [properties, setProperties] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
+  const [techs, setTechs] = useState([]);
   
   const [title, setTitle] = useState("");
   const [jobType, setJobType] = useState("RECURRING_CLEANING");
@@ -21,6 +23,7 @@ const Job = () => {
   const [propertyId, setPropertyId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [status, setStatus] = useState("ACTIVE");
+  const [defaultTechId, setDefaultTechId] = useState("");
   
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
@@ -33,13 +36,22 @@ const Job = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [jobsResponse, customersResponse] = await Promise.all([
+        const [jobsResponse, customersResponse, techsResponse] = await Promise.all([
           getjob(),
-          getCustomers()
+          getCustomers(),
+          getTechs()
         ]);
         setJobs(Array.isArray(jobsResponse) ? jobsResponse : jobsResponse?.data || []);
         const customersList = Array.isArray(customersResponse) ? customersResponse : customersResponse?.data || [];
         setCustomers(customersList);
+        const techsList = Array.isArray(techsResponse)
+          ? techsResponse
+          : Array.isArray(techsResponse?.data)
+            ? techsResponse.data
+            : Array.isArray(techsResponse?.techs)
+              ? techsResponse.techs
+              : [];
+        setTechs(techsList);
         
         // Fetch all properties for all customers
         try {
@@ -127,6 +139,7 @@ const Job = () => {
         frequency,
         startDate: new Date(startDate),
         status,
+        ...(defaultTechId ? { defaultTechId } : {}),
       };
       const createdJob = await createjob(jobData);
       setJobs([...jobs, createdJob]);
@@ -137,6 +150,7 @@ const Job = () => {
       setPropertyId("");
       setStartDate("");
       setStatus("ACTIVE");
+      setDefaultTechId("");
     } catch (error) {
       console.error("Error creating job:", error);
       setSubmitError("Couldn't create that job. Please try again.");
@@ -185,6 +199,7 @@ const Job = () => {
               {jobs.map((job) => {
                 const customer = customers.find(c => c.id === job.customerId);
                 const property = allProperties.find(p => p.id === job.propertyId);
+                const tech = techs.find(t => t.id === job.defaultTechId);
                 return (
                 <li
                   key={job.id}
@@ -199,7 +214,7 @@ const Job = () => {
                       {customer ? `${customer.firstName} ${customer.lastName}` : "—"} • {property?.address || "—"}
                     </p>
                     <p className="text-xs text-slate-400 truncate mt-0.5">
-                      {job.frequency || "—"} • {job.jobType}
+                      {job.frequency || "—"} • {job.jobType} • {tech ? `${tech.firstName} ${tech.lastName || ''}`.trim() : 'Unassigned'}
                     </p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
@@ -325,6 +340,22 @@ const Job = () => {
                 <option value="PAUSED">Paused</option>
                 <option value="COMPLETED">Completed</option>
                 <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-900 mb-1">Assigned tech</label>
+              <select
+                value={defaultTechId}
+                onChange={(e) => setDefaultTechId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">Unassigned</option>
+                {techs.map((tech) => (
+                  <option key={tech.id} value={tech.id}>
+                    {tech.firstName} {tech.lastName || ''}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

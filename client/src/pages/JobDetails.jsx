@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getjobById, updatejob, deletejob } from '../services/jobService';
 import { getCustomers } from '../services/customerService';
 import { getPropertiesByCustomer } from '../services/propertyService';
+import { getTechs } from '../services/techService';
 import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import Spinner from '../components/Spinner';
@@ -29,8 +30,10 @@ const JobDetails = () => {
   const [notes, setNotes] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [propertyId, setPropertyId] = useState("");
+  const [defaultTechId, setDefaultTechId] = useState("");
 
   const [customers, setCustomers] = useState([]);
+  const [techs, setTechs] = useState([]);
   const [properties, setProperties] = useState([]);
   const [jobCustomer, setJobCustomer] = useState(null);
   const [jobProperty, setJobProperty] = useState(null);
@@ -54,6 +57,7 @@ const JobDetails = () => {
         setNotes(response.notes || "");
         setCustomerId(response.customerId || "");
         setPropertyId(response.propertyId || "");
+        setDefaultTechId(response.defaultTechId || "");
       } catch (error) {
         console.error("Error fetching job:", error);
         setError("Couldn't load this job.");
@@ -80,6 +84,25 @@ const JobDetails = () => {
     }
     fetchCustomers();
   }, [job, customerId]);
+
+  useEffect(() => {
+    const fetchTechs = async () => {
+      try {
+        const response = await getTechs();
+        const list = Array.isArray(response)
+          ? response
+          : Array.isArray(response?.data)
+            ? response.data
+            : Array.isArray(response?.techs)
+              ? response.techs
+              : [];
+        setTechs(list);
+      } catch (error) {
+        console.error("Error fetching techs:", error);
+      }
+    };
+    fetchTechs();
+  }, []);
 
   useEffect(() => {
     const fetchProperties = async () => {
@@ -126,6 +149,7 @@ const JobDetails = () => {
     setNotes(job.notes || "");
     setCustomerId(job.customerId || "");
     setPropertyId(job.propertyId || "");
+    setDefaultTechId(job.defaultTechId || "");
     setJobErrors({});
     setIsEditing(false);
   };
@@ -151,6 +175,7 @@ const JobDetails = () => {
         jobType,
         frequency,
         status,
+        defaultTechId: defaultTechId || null,
         startDate: new Date(startDate),
         ...(endDate && { endDate: new Date(endDate) }),
         ...(price && { price: parseFloat(price) }),
@@ -182,6 +207,8 @@ const JobDetails = () => {
       setShowDeleteConfirm(false);
     }
   };
+
+  const defaultTech = techs.find((tech) => tech.id === (job?.defaultTechId || defaultTechId));
 
   if (loading) {
     return (
@@ -312,6 +339,12 @@ const JobDetails = () => {
                   </dd>
                 </div>
                 <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Assigned Tech</dt>
+                  <dd className="mt-1 text-sm text-slate-900">
+                    {defaultTech ? `${defaultTech.firstName} ${defaultTech.lastName || ''}`.trim() : "Unassigned"}
+                  </dd>
+                </div>
+                <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-400">Start Date</dt>
                   <dd className="mt-1 text-sm text-slate-900">
                     {job.startDate ? new Date(job.startDate).toLocaleDateString() : "—"}
@@ -379,6 +412,21 @@ const JobDetails = () => {
                       <option value="PAUSED">Paused</option>
                       <option value="COMPLETED">Completed</option>
                       <option value="CANCELLED">Cancelled</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-900 mb-1">Assigned Tech</label>
+                    <select
+                      value={defaultTechId}
+                      onChange={(e) => setDefaultTechId(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">Unassigned</option>
+                      {techs.map((tech) => (
+                        <option key={tech.id} value={tech.id}>
+                          {tech.firstName} {tech.lastName || ''}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <FormField

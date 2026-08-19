@@ -1,7 +1,7 @@
 import express from "express";
 
 import { syncUser } from "../controllers/authController.js";
-import { createTech, getTechs, getTech } from "../controllers/techController.js";
+import { createTech, getTechs, getTech, updateTech, deleteTech } from "../controllers/techController.js";
 import requireAuth from "../middleware/requireAuth.js";
 import requireSupabaseAuth from "../middleware/requireSupabaseAuth.js";
 import { validate } from "../middleware/validateSchema.js";
@@ -21,5 +21,7 @@ router.post("/sync", requireSupabaseAuth, syncUser);
 router.post("/tech", requireAuth, createTech);
 router.get("/tech", requireAuth, getTechs);
 router.get("/tech/:technicianId", requireAuth, getTech);
+router.put("/tech/:technicianId", requireAuth, updateTech);
+router.delete("/tech/:technicianId", requireAuth, deleteTech);
 
 export default router;
