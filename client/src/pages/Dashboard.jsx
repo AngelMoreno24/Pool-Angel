@@ -2,14 +2,21 @@ import React, { useState, useEffect } from 'react'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { getCustomers } from '../services/customerService';
+import { getjob } from '../services/jobService';
  
 const RECENT_COUNT = 5;
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  
 const Dashboard = () => {
  
   const { session, signOut } = UserAuth();
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(true);
+  const [jobs, setJobs] = useState([]);
+  const [jobsLoading, setJobsLoading] = useState(true);
+  // Which calendar day is selected - defaults to today, changes when a
+  // week cell is clicked.
+  const [selectedDate, setSelectedDate] = useState(() => new Date());
  
   const navigate = useNavigate();
  
@@ -31,19 +38,27 @@ const Dashboard = () => {
   };
  
   useEffect(() => {
-    const fetchCustomers = async () => {
+    const fetchDashboardData = async () => {
       try {
         setCustomersLoading(true);
-        const response = await getCustomers();
-        setCustomers(toArray(response));
+        setJobsLoading(true);
+ 
+        const [customersResponse, jobsResponse] = await Promise.all([
+          getCustomers(),
+          getjob()
+        ]);
+ 
+        setCustomers(toArray(customersResponse));
+        setJobs(toArray(jobsResponse).filter((job) => job?.status !== 'CANCELLED'));
       } catch (error) {
-        console.error("Error fetching customers:", error);
+        console.error("Error fetching dashboard data:", error);
       } finally {
         setCustomersLoading(false);
+        setJobsLoading(false);
       }
     };
  
-    fetchCustomers();
+    fetchDashboardData();
   }, [session]);
  
   const byMostRecent = (a, b) =>
@@ -51,8 +66,43 @@ const Dashboard = () => {
  
   const recentCustomers = [...customers].sort(byMostRecent).slice(0, RECENT_COUNT);
  
+  const jobsByStartDate = jobs.reduce((map, job) => {
+    if (!job?.startDate) return map;
+    const key = new Date(job.startDate).toISOString().split('T')[0];
+    map[key] = [...(map[key] || []), job];
+    return map;
+  }, {});
+ 
+  const upcomingJobs = [...jobs]
+    .filter((job) => job?.startDate)
+    .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
+    .slice(0, 5);
+ 
+  // Current week only - Sunday through Saturday, no month navigation needed.
+  const today = new Date();
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - today.getDay());
+ 
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return date;
+  });
+ 
+  const todayKey = today.toISOString().split('T')[0];
+  const selectedKey = selectedDate.toISOString().split('T')[0];
+  const jobsForSelectedDay = jobsByStartDate[selectedKey] || [];
+ 
+  const totalJobsThisWeek = weekDays.reduce((count, date) => {
+    const key = date.toISOString().split('T')[0];
+    return count + (jobsByStartDate[key]?.length || 0);
+  }, 0);
+ 
   const initials = (first, last) =>
     `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
+ 
+  const formatJobDate = (value) =>
+    value ? new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
  
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -97,35 +147,39 @@ const Dashboard = () => {
             </div>
           </Link>
  
-          {/* Today's completed jobs — placeholder */}
-          <div className="relative bg-white rounded-xl border border-dashed border-slate-300 p-5 flex items-center gap-4">
-            <span className="absolute top-2.5 right-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-              Coming soon
-            </span>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
             <div className="h-11 w-11 shrink-0 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <p className="text-2xl font-semibold text-slate-300">—</p>
-              <p className="text-sm text-slate-400">Completed today</p>
+              <p className="text-2xl font-semibold text-slate-900">
+                {jobsLoading ? (
+                  <span className="inline-block h-7 w-10 bg-slate-200 rounded animate-pulse align-middle" />
+                ) : (
+                  jobs.filter((job) => job?.status === 'COMPLETED').length
+                )}
+              </p>
+              <p className="text-sm text-slate-500">Completed jobs</p>
             </div>
           </div>
  
-          {/* Today's incomplete jobs — placeholder */}
-          <div className="relative bg-white rounded-xl border border-dashed border-slate-300 p-5 flex items-center gap-4">
-            <span className="absolute top-2.5 right-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-              Coming soon
-            </span>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex items-center gap-4">
             <div className="h-11 w-11 shrink-0 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div>
-              <p className="text-2xl font-semibold text-slate-300">—</p>
-              <p className="text-sm text-slate-400">Incomplete today</p>
+              <p className="text-2xl font-semibold text-slate-900">
+                {jobsLoading ? (
+                  <span className="inline-block h-7 w-10 bg-slate-200 rounded animate-pulse align-middle" />
+                ) : (
+                  jobs.filter((job) => job?.status !== 'COMPLETED' && job?.status !== 'CANCELLED').length
+                )}
+              </p>
+              <p className="text-sm text-slate-500">Open jobs</p>
             </div>
           </div>
         </div>
@@ -181,23 +235,168 @@ const Dashboard = () => {
             )}
           </section>
  
-          {/* Upcoming jobs — placeholder */}
-          <section className="bg-white rounded-xl border border-dashed border-slate-300 overflow-hidden">
-            <div className="px-5 py-4 border-b border-dashed border-slate-300 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-500">Upcoming jobs</h2>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                Coming soon
+          <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">Upcoming jobs</h2>
+              <Link to="/jobs" className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
+                View all
+              </Link>
+            </div>
+ 
+            {jobsLoading ? (
+              <ul className="divide-y divide-slate-100">
+                {[...Array(4)].map((_, i) => (
+                  <li key={i} className="px-5 py-4 animate-pulse">
+                    <div className="h-4 w-36 bg-slate-200 rounded mb-2" />
+                    <div className="h-3 w-24 bg-slate-200 rounded" />
+                  </li>
+                ))}
+              </ul>
+            ) : upcomingJobs.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <p className="text-sm text-slate-500">No upcoming jobs scheduled.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {upcomingJobs.map((job) => {
+                  const customer = customers.find((entry) => entry.id === job.customerId);
+                  return (
+                    <li key={job.id} className="px-5 py-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate">{job.title}</p>
+                          <p className="text-sm text-slate-500 truncate">
+                            {customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown customer'}
+                          </p>
+                        </div>
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-blue-100 text-blue-800">
+                          {job.status || 'ACTIVE'}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {formatJobDate(job.startDate)}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+ 
+          {/* This week's jobs - simplified from a full month grid to just the current week */}
+          <section className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">This week</h2>
+              <span className="text-xs font-medium text-slate-500">
+                {weekDays[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                {' – '}
+                {weekDays[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
               </span>
             </div>
-            <div className="px-5 py-10 text-center">
-              <div className="mx-auto h-10 w-10 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mb-3">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+ 
+            <div className="p-4">
+              <div className="grid grid-cols-7 gap-2">
+                {weekDays.map((date, index) => {
+                  const dateKey = date.toISOString().split('T')[0];
+                  const dayJobs = jobsByStartDate[dateKey] || [];
+                  const isToday = dateKey === todayKey;
+                  const isSelected = dateKey === selectedKey;
+ 
+                  return (
+                    <button
+                      key={dateKey}
+                      type="button"
+                      onClick={() => setSelectedDate(date)}
+                      className={[
+                        'min-h-[120px] rounded-lg border p-2 text-left transition-colors',
+                        isSelected
+                          ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
+                          : isToday
+                            ? 'border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50'
+                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100',
+                      ].join(' ')}
+                    >
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                          {WEEKDAYS[index]}
+                        </span>
+                        <span className={['text-xs font-medium', isSelected || isToday ? 'text-indigo-700' : 'text-slate-700'].join(' ')}>
+                          {date.getDate()}
+                        </span>
+                      </div>
+ 
+                      <div className="space-y-1">
+                        {dayJobs.slice(0, 3).map((job) => (
+                          <div key={job.id} className="truncate rounded bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm">
+                            {job.title}
+                          </div>
+                        ))}
+                        {dayJobs.length > 3 && (
+                          <div className="text-[10px] font-medium text-indigo-700">
+                            +{dayJobs.length - 3} more
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-sm text-slate-500">Job scheduling isn't set up yet.</p>
-              <p className="text-sm text-slate-400 mt-1">Once jobs are wired up, upcoming visits will show here.</p>
+ 
+              <div className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
+                {totalJobsThisWeek} job{totalJobsThisWeek === 1 ? '' : 's'} scheduled this week
+              </div>
             </div>
+          </section>
+ 
+          {/* Jobs for whichever day is selected above - defaults to today */}
+          <section className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-900">
+                Jobs for {selectedKey === todayKey ? 'today' : selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+              </h2>
+              <span className="text-xs font-medium text-slate-500">
+                {selectedDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            </div>
+ 
+            {jobsLoading ? (
+              <ul className="divide-y divide-slate-100">
+                {[...Array(2)].map((_, i) => (
+                  <li key={i} className="px-5 py-4 flex items-center gap-3 animate-pulse">
+                    <div className="h-9 w-9 rounded-lg bg-slate-200" />
+                    <div className="h-4 w-48 bg-slate-200 rounded" />
+                  </li>
+                ))}
+              </ul>
+            ) : jobsForSelectedDay.length === 0 ? (
+              <div className="px-5 py-10 text-center">
+                <p className="text-sm text-slate-500">No jobs scheduled for this day.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {jobsForSelectedDay.map((job) => {
+                  const customer = customers.find((entry) => entry.id === job.customerId);
+                  return (
+                    <li key={job.id} className="px-5 py-4 flex items-center gap-3">
+                      <div className="h-9 w-9 shrink-0 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-slate-900 truncate">{job.title}</p>
+                        <p className="text-sm text-slate-500 truncate">
+                          {customer ? `${customer.firstName} ${customer.lastName}` : 'Unknown customer'}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-blue-100 text-blue-800 shrink-0">
+                        {job.status || 'ACTIVE'}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         </div>
       </div>
