@@ -10,9 +10,18 @@ export const createjob = async (data) => {
   return response.data;
 };
 
-
 export const getjobById = async (id) => {
   const response = await api.get(`/jobs/${id}`);
+  return response.data;
+};
+
+export const getjobByTech = async (id) => {
+  const response = await api.get(`/jobs/getByTech/${id}`);
+  return response.data;
+};
+
+export const getjobForRoute = async (id) => {
+  const response = await api.get(`/jobs/getForRoute/${id}`);
   return response.data;
 };
 

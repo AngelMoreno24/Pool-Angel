@@ -115,7 +115,95 @@ export const getJob = async (req, res, next) => {
  
 };
  
+
+export const getJobByTech = async (req, res, next) => {
  
+    try {
+        const { companyId, role } = req.user;
+        const { techId } = req.params;
+
+        if (!companyId || role !== "OWNER") {
+            return next(createError("Forbidden", 403));
+        }
+
+        if (!techId) {
+            return next(createError("Missing required fields", 400));
+        }
+ 
+            
+        var verify = await prisma.user.findUnique({
+            where: { 
+                companyId,
+                id: techId 
+            },
+        });
+        
+        if(!verify){
+            verify = await prisma.user.findUnique({
+                where: { 
+                    companyId,
+                    authId: techId 
+                },
+            });
+        }
+
+        console.log(verify)
+ 
+        if(!verify ){
+            return next(createError("Technician not found", 404));
+        }     
+        const jobs = await prisma.job.findMany({
+            where: { 
+                companyId,
+                defaultTechId: verify.id,
+            },
+        });
+        return res.status(200).json(jobs);
+    } catch (error) {
+        console.error(error);
+        return next(createError("Failed to fetch jobs", 500, error.message));
+    }
+ 
+};
+export const getJobForRoute = async (req, res, next) => {
+ 
+    try {
+        const { companyId, role, techId, jobType } = req.user;
+ 
+        if (!companyId || role !== "OWNER") {
+            return next(createError("Forbidden", 403));
+        }
+
+        if (!techId) {
+            return next(createError("Missing required fields", 400));
+        }
+ 
+        const verify = await prisma.user.findMany({
+            where: { 
+                companyId,
+                id: techId
+              },
+        });
+ 
+        if(!verify || verify.length === 0){
+            return next(createError("Technician not found", 404));
+        }    
+        const jobs = await prisma.job.findMany({
+            where: { 
+                companyId,
+                techId: techId,
+                jobType: RECURRING_CLEANING
+            },
+        });
+        return res.status(200).json(jobs);
+    } catch (error) {
+        console.error(error);
+        return next(createError("Failed to fetch jobs", 500, error.message));
+    }
+ 
+};
+ 
+
 export const updateJob = async (req, res, next) => {
  
     try {

@@ -15,6 +15,7 @@ import Technicians from './pages/Technicians';
 import TechnicianDetails from './pages/TechnicianDetails';
 import Job from './pages/Job';
 import JobDetails from './pages/JobDetails';
+import Route from './pages/Route';
 
 export const router = createBrowserRouter([
   {
@@ -71,6 +72,10 @@ export const router = createBrowserRouter([
       {
         path: "/jobs/:id",
         element: <JobDetails />,
+      },
+      {
+        path: "/route",
+        element: <Route />,
       },
     ],
   },
