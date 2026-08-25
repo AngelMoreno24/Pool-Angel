@@ -5,7 +5,7 @@ export const createJob = async (req, res, next) => {
  
     try {
  
-        const { customerId, propertyId, poolId, title, jobType, frequency, status, defaultTechId, startDate, endDate, price, notes } = req.body;
+        const { customerId, propertyId, poolId, title, jobType, frequency, status, defaultTechId, startDate, endDate, price, notes, dayOfWeek } = req.body;
  
         const { companyId, role } = req.user;
  
@@ -51,6 +51,7 @@ export const createJob = async (req, res, next) => {
                 endDate,
                 price,
                 notes,
+                dayOfWeek,
             },
         });
  
@@ -115,47 +116,56 @@ export const getJob = async (req, res, next) => {
  
 };
  
-
+ 
 export const getJobByTech = async (req, res, next) => {
  
     try {
-        const { companyId, role } = req.user;
+        const { companyId, role, id: callerId, authId: callerAuthId } = req.user;
         const { techId } = req.params;
-
-        if (!companyId || role !== "OWNER") {
+ 
+        if (!companyId) {
             return next(createError("Forbidden", 403));
         }
-
+ 
         if (!techId) {
             return next(createError("Missing required fields", 400));
         }
  
-            
-        var verify = await prisma.user.findUnique({
-            where: { 
+        // FIX: only an OWNER could call this before, which blocked the exact
+        // case Route.jsx depends on - a TECH fetching their own jobs. Now:
+        // an OWNER can look up any tech in their company, and a TECH can
+        // only look up themselves (matched against either id or authId,
+        // since the caller might pass either - see the lookup below).
+        //
+        // NOTE: this assumes req.user carries the caller's own `id` and
+        // `authId` (set by requireAuth). If it currently doesn't, this
+        // self-check will always fail for techs - confirm requireAuth
+        // actually attaches those fields, or adjust accordingly.
+        const isSelf = callerId === techId || callerAuthId === techId;
+        if (role !== "OWNER" && !isSelf) {
+            return next(createError("Forbidden", 403));
+        }
+ 
+        // FIX: findUnique can't take companyId alongside id/authId unless
+        // that's an explicit compound unique index - this throws at runtime
+        // as written. findFirst with an OR handles "techId might be the
+        // Prisma User.id OR the Supabase authId" in a single query instead
+        // of two sequential ones.
+        const tech = await prisma.user.findFirst({
+            where: {
                 companyId,
-                id: techId 
+                OR: [{ id: techId }, { authId: techId }],
             },
         });
-        
-        if(!verify){
-            verify = await prisma.user.findUnique({
-                where: { 
-                    companyId,
-                    authId: techId 
-                },
-            });
-        }
-
-        console.log(verify)
  
-        if(!verify ){
+        if (!tech) {
             return next(createError("Technician not found", 404));
-        }     
+        }
+ 
         const jobs = await prisma.job.findMany({
-            where: { 
+            where: {
                 companyId,
-                defaultTechId: verify.id,
+                defaultTechId: tech.id,
             },
         });
         return res.status(200).json(jobs);
@@ -165,35 +175,56 @@ export const getJobByTech = async (req, res, next) => {
     }
  
 };
+ 
 export const getJobForRoute = async (req, res, next) => {
  
     try {
-        const { companyId, role, techId, jobType } = req.user;
+        const { companyId, role, id: callerId, authId: callerAuthId } = req.user;
+        // FIX: techId/jobType were being read from req.user, which never has
+        // them - they belong on req.params (matching getJobByTech's pattern).
+        const { techId } = req.params;
+        // Optional ?day=0-6 query param to fetch a single weekday's route -
+        // omit it to get every recurring job for this tech across all days.
+        const { day } = req.query;
  
-        if (!companyId || role !== "OWNER") {
+        if (!companyId) {
             return next(createError("Forbidden", 403));
         }
-
+ 
         if (!techId) {
             return next(createError("Missing required fields", 400));
         }
  
-        const verify = await prisma.user.findMany({
-            where: { 
+        // Same self-or-owner check as getJobByTech - see the note there
+        // about req.user needing id/authId attached.
+        const isSelf = callerId === techId || callerAuthId === techId;
+        if (role !== "OWNER" && !isSelf) {
+            return next(createError("Forbidden", 403));
+        }
+ 
+        const tech = await prisma.user.findFirst({
+            where: {
                 companyId,
-                id: techId
-              },
+                OR: [{ id: techId }, { authId: techId }],
+            },
         });
  
-        if(!verify || verify.length === 0){
+        if (!tech) {
             return next(createError("Technician not found", 404));
-        }    
+        }
+ 
         const jobs = await prisma.job.findMany({
-            where: { 
+            where: {
                 companyId,
-                techId: techId,
-                jobType: RECURRING_CLEANING
+                // FIX: Job has no `techId` field - it's `defaultTechId`.
+                defaultTechId: tech.id,
+                // FIX: RECURRING_CLEANING was a bare, undefined identifier
+                // (ReferenceError at runtime) - it needed to be the string
+                // value of the enum.
+                jobType: "RECURRING_CLEANING",
+                ...(day !== undefined ? { dayOfWeek: Number(day) } : {}),
             },
+            orderBy: { routeOrder: "asc" },
         });
         return res.status(200).json(jobs);
     } catch (error) {
@@ -203,14 +234,14 @@ export const getJobForRoute = async (req, res, next) => {
  
 };
  
-
+ 
 export const updateJob = async (req, res, next) => {
  
     try {
  
         const { jobId } = req.params;
  
-        const { title, jobType, frequency, status, defaultTechId, startDate, endDate, price, notes } = req.body;
+        const { title, jobType, frequency, status, defaultTechId, startDate, endDate, price, notes, routeOrder, dayOfWeek } = req.body;
  
         const { companyId, role } = req.user;
  
@@ -248,6 +279,8 @@ export const updateJob = async (req, res, next) => {
                 endDate,
                 price,
                 notes,
+                routeOrder,
+                dayOfWeek,
             },
         });
  

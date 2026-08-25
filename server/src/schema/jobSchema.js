@@ -19,6 +19,15 @@ export const jobSchema = z.object({
  
   price: z.coerce.number().nonnegative("Price can't be negative").optional(),
   notes: z.string().trim().optional(),
+ 
+  // Which weekday this recurring job's route stop belongs to - 0 (Sun)
+  // through 6 (Sat), matching JS's Date.getDay(). This is what makes
+  // routeOrder per-day rather than one global order.
+  dayOfWeek: z.coerce.number().int().min(0).max(6).optional(),
+ 
+  // Where this job sits within its default tech's route for its dayOfWeek -
+  // set via the route reordering UI, not typically on initial create.
+  routeOrder: z.coerce.number().int().optional(),
 });
  
 // For PUT /update/:jobId - every field optional, but still validated if present.
