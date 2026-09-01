@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { UserAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -46,7 +46,12 @@ const WORK_DAYS = [
 ];
  
 const Route = () => {
-  const { session, signOut } = UserAuth();
+  const { session, signOut, role } = UserAuth();
+
+  if (role !== 'OWNER') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [properties, setProperties] = useState([]);

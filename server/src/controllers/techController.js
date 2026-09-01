@@ -83,7 +83,7 @@ export const getTechs = async (req, res, next) => {
   try {
     const { companyId, role } = req.user;
 
-    if (!companyId || role !== "OWNER") {
+    if (!companyId ) {
       return next(createError("Forbidden", 403));
     }
 

@@ -56,3 +56,16 @@ export const syncUser = async (req, res, next) => {
     return next(createError("Failed to sync user", 500, error.message));
   }
 };
+
+
+export const getRole = async (req, res, next) => {
+  try {
+    const { companyId, role } = req.user; 
+
+    console.log("Get role request:", { companyId, role });
+    return res.status(200).json({ companyId, role }); 
+  }catch (error) {
+    console.error("Get user error:", error);
+    return next(createError("Failed to get user", 500, error.message));
+  }
+};

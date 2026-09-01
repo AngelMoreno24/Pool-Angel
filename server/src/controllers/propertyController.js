@@ -65,7 +65,7 @@ export const getProperties = async (req, res, next) => {
         const { customerId } = req.params;
         const { companyId, role } = req.user;
  
-        if (!companyId || role !== "OWNER") {
+        if (!companyId ) {
             return next(createError("Forbidden", 403));
         }
  
@@ -94,7 +94,7 @@ export const getProperty = async (req, res, next) => {
         const { propertyId } = req.params;
         const { companyId, role } = req.user;
  
-        if (!companyId || role !== "OWNER") {
+        if (!companyId ) {
             return next(createError("Forbidden", 403));
         }
  

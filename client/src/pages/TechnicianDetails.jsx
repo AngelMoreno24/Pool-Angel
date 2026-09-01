@@ -1,12 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Navigate } from 'react-router-dom';
 import { getTech, updateTech, deleteTech } from '../services/techService';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import Spinner from '../components/Spinner';
+import { UserAuth } from '../context/AuthContext';
 
 const TechnicianDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { role } = UserAuth();
+
+  if (role !== 'OWNER') {
+    return <Navigate to="/dashboard" replace />;
+  }
 
   const [tech, setTech] = useState(null);
   const [loading, setLoading] = useState(true);

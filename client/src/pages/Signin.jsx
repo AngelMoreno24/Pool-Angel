@@ -68,6 +68,14 @@ const Signin = () => {
         setDemoLoading(false);
     }
  
+    const handleTechDemoSignin = async () => {
+        setDemoLoading(true);
+        setEmail('tech@poolangel.com');
+        setPassword('tech@poolangel.com');
+        await performSignin('tech@poolangel.com', 'tech@poolangel.com');
+        setDemoLoading(false);
+    }
+    
     const isLoading = loading || demoLoading;
  
   return (
@@ -145,7 +153,7 @@ const Signin = () => {
                     <div className="h-px flex-1 bg-slate-200" />
                 </div>
  
-                <button
+                <button 
                     onClick={handleDemoSignin}
                     disabled={isLoading}
                     type="button"
@@ -164,7 +172,32 @@ const Signin = () => {
                             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                             </svg>
-                            Try the demo
+                            Try the owner demo
+                        </>
+                    )}
+                </button>
+
+                
+                <button 
+                    onClick={handleTechDemoSignin}
+                    disabled={isLoading}
+                    type="button"
+                    className="mt-6 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                >
+                    {demoLoading ? (
+                        <>
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                            Signing in...
+                        </>
+                    ) : (
+                        <>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            Try the tech demo
                         </>
                     )}
                 </button>

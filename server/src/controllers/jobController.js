@@ -67,15 +67,27 @@ export const getJobs = async (req, res, next) => {
  
     try {
         const { companyId, role } = req.user;
- 
-        if (!companyId || role !== "OWNER") {
+        
+        if (!companyId) {
             return next(createError("Forbidden", 403));
         }
- 
-        const jobs = await prisma.job.findMany({
-            where: { companyId },
-        });
-        return res.status(200).json(jobs);
+        
+        if( role == "OWNER") {
+            const jobs = await prisma.job.findMany({
+                where: { companyId },
+            });
+            return res.status(200).json(jobs);
+            
+        }else if( role == "TECH") {
+            //console.log("adfjbfuohhofdu")
+            const jobs = await prisma.job.findMany({
+                where: { companyId, defaultTechId: req.user.dbUserId },
+            });
+
+            //console.log(`Fetched ${jobs.length} jobs for tech ${req.user.dbUserId} with companyId ${companyId}`);
+            //console.log("Jobs for tech:", jobs.map(j => ({ id: j.id, title: j.title, dayOfWeek: j.dayOfWeek, routeOrder: j.routeOrder })));
+            return res.status(200).json(jobs);
+        }
     } catch (error) {
         console.error(error);
         return next(createError("Failed to fetch jobs", 500, error.message));
@@ -226,6 +238,8 @@ export const getJobForRoute = async (req, res, next) => {
             },
             orderBy: { routeOrder: "asc" },
         });
+        console.log(`Fetched ${jobs.length} jobs for tech ${tech.id} on day ${day}`);
+        console.log("Jobs:", jobs.map(j => ({ id: j.id, title: j.title, dayOfWeek: j.dayOfWeek, routeOrder: j.routeOrder })));
         return res.status(200).json(jobs);
     } catch (error) {
         console.error(error);

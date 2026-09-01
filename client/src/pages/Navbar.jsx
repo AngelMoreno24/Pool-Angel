@@ -2,21 +2,30 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { UserAuth } from "../context/AuthContext";
  
-const NAV_LINKS = [
-  { to: "/dashboard", label: "Dashboard" },
-  { to: "/customers", label: "Customers" },
-  { to: "/technicians", label: "Technicians" },
-  { to: "/jobs", label: "Jobs" },
-  { to: "/route", label: "Routes" },
-];
+const NAV_LINKS = {
+  OWNER: [
+    { to: "/dashboard", label: "Dashboard" },
+    { to: "/customers", label: "Customers" },
+    { to: "/technicians", label: "Technicians" },
+    { to: "/jobs", label: "Jobs" },
+    { to: "/route", label: "Routes" },
+    { to: "/my-route", label: "MyRoute" },
+  ],
+  TECH: [
+    { to: "/dashboard", label: "Dashboard" },
+    { to: "/jobs", label: "Jobs" },
+    { to: "/my-route", label: "MyRoute" },
+  ],
+};
  
 const Navbar = () => {
   const location = useLocation();
-  const { session, signOut } = UserAuth();
+  const { session, signOut, role } = UserAuth();
  
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
  
+  const visibleLinks = role === "TECH" ? NAV_LINKS.TECH : NAV_LINKS.OWNER;
   const email = session?.user?.email || "";
   const initial = email ? email[0].toUpperCase() : "?";
  
@@ -43,7 +52,7 @@ const Navbar = () => {
             </Link>
  
             <div className="hidden md:flex items-center gap-1">
-              {NAV_LINKS.map((link) => (
+              {visibleLinks.map((link) => (
                 <Link key={link.to} to={link.to} className={linkClasses(link.to)}>
                   {link.label}
                 </Link>
@@ -62,7 +71,7 @@ const Navbar = () => {
                 <span className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-medium">
                   {initial}
                 </span>
-                <span className="text-sm text-slate-600 max-w-[160px] truncate">
+                <span className="text-sm text-slate-600 max-w-40 truncate">
                   {email}
                 </span>
                 <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -114,7 +123,7 @@ const Navbar = () => {
         {/* Mobile menu */}
         {mobileOpen && (
           <div className="md:hidden border-t border-slate-100 py-3 space-y-1">
-            {NAV_LINKS.map((link) => (
+            {visibleLinks.map((link) => (
               <Link
                 key={link.to}
                 to={link.to}

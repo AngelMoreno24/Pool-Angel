@@ -6,6 +6,54 @@ import { getjob } from '../services/jobService';
  
 const RECENT_COUNT = 5;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+ 
+const startOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+ 
+// Does `job` actually occur on `date`? A recurring job's startDate is just
+// its FIRST occurrence - a WEEKLY job that started last week still occurs
+// again this week, on the same weekday, indefinitely (until its endDate,
+// or until it's paused/completed/cancelled). This replaces the previous
+// "exact startDate match" logic, which never showed a job again after its
+// original start date.
+const jobOccursOnDate = (job, date) => {
+  if (!job?.startDate) return false;
+  if (job.status === 'CANCELLED' || job.status === 'COMPLETED') return false;
+ 
+  const start = startOfDay(job.startDate);
+  const target = startOfDay(date);
+ 
+  if (target < start) return false; // hasn't started yet
+  if (job.endDate && target > startOfDay(job.endDate)) return false; // already ended
+ 
+  const frequency = job.frequency;
+ 
+  // No frequency (one-time repairs, etc.) or explicitly ONE_TIME - only
+  // occurs on its exact start date.
+  if (!frequency || frequency === 'ONE_TIME') {
+    return target.getTime() === start.getTime();
+  }
+ 
+  // Recurring jobs repeat on the same weekday as their start date - prefer
+  // job.dayOfWeek if it's set (from the Route page), otherwise derive it
+  // from startDate itself so older jobs without dayOfWeek still work.
+  const recurWeekday = job.dayOfWeek ?? start.getDay();
+  if (target.getDay() !== recurWeekday) return false;
+ 
+  const diffWeeks = Math.round((target - start) / MS_PER_DAY) / 7;
+ 
+  if (frequency === 'WEEKLY') return Number.isInteger(diffWeeks);
+  if (frequency === 'BIWEEKLY') return Number.isInteger(diffWeeks) && diffWeeks % 2 === 0;
+  // Approximated as every 4 weeks on the same weekday - not true calendar-
+  // month semantics, but close enough for an at-a-glance dashboard.
+  if (frequency === 'MONTHLY') return Number.isInteger(diffWeeks) && diffWeeks % 4 === 0;
+ 
+  return false;
+};
  
 const Dashboard = () => {
  
@@ -66,12 +114,9 @@ const Dashboard = () => {
  
   const recentCustomers = [...customers].sort(byMostRecent).slice(0, RECENT_COUNT);
  
-  const jobsByStartDate = jobs.reduce((map, job) => {
-    if (!job?.startDate) return map;
-    const key = new Date(job.startDate).toISOString().split('T')[0];
-    map[key] = [...(map[key] || []), job];
-    return map;
-  }, {});
+  // Replaces the old exact-date bucket (jobsByStartDate) - computes which
+  // jobs occur on a given date on demand, accounting for recurrence.
+  const getJobsForDate = (date) => jobs.filter((job) => jobOccursOnDate(job, date));
  
   const upcomingJobs = [...jobs]
     .filter((job) => job?.startDate)
@@ -91,12 +136,12 @@ const Dashboard = () => {
  
   const todayKey = today.toISOString().split('T')[0];
   const selectedKey = selectedDate.toISOString().split('T')[0];
-  const jobsForSelectedDay = jobsByStartDate[selectedKey] || [];
+  const jobsForSelectedDay = getJobsForDate(selectedDate);
  
-  const totalJobsThisWeek = weekDays.reduce((count, date) => {
-    const key = date.toISOString().split('T')[0];
-    return count + (jobsByStartDate[key]?.length || 0);
-  }, 0);
+  const totalJobsThisWeek = weekDays.reduce(
+    (count, date) => count + getJobsForDate(date).length,
+    0
+  );
  
   const initials = (first, last) =>
     `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
@@ -283,7 +328,7 @@ const Dashboard = () => {
             )}
           </section>
  
-          {/* This week's jobs - simplified from a full month grid to just the current week */}
+          {/* This week's jobs - now recurrence-aware, not exact-date-only */}
           <section className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-900">This week</h2>
@@ -298,7 +343,7 @@ const Dashboard = () => {
               <div className="grid grid-cols-7 gap-2">
                 {weekDays.map((date, index) => {
                   const dateKey = date.toISOString().split('T')[0];
-                  const dayJobs = jobsByStartDate[dateKey] || [];
+                  const dayJobs = getJobsForDate(date);
                   const isToday = dateKey === todayKey;
                   const isSelected = dateKey === selectedKey;
  

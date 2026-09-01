@@ -1,6 +1,6 @@
 import express from "express";
 
-import { syncUser } from "../controllers/authController.js";
+import { syncUser, getRole } from "../controllers/authController.js";
 import { createTech, getTechs, getTech, updateTech, deleteTech } from "../controllers/techController.js";
 import requireAuth from "../middleware/requireAuth.js";
 import requireSupabaseAuth from "../middleware/requireSupabaseAuth.js";
@@ -18,6 +18,7 @@ router.post("/signin", validate(signinSchema), (req, res) => {
 });
 
 router.post("/sync", requireSupabaseAuth, syncUser);
+router.get("/role", requireAuth, getRole);
 router.post("/tech", requireAuth, createTech);
 router.get("/tech", requireAuth, getTechs);
 router.get("/tech/:technicianId", requireAuth, getTech);

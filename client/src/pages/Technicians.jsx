@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom';
-import { getTechs, createTech } from '../services/techService';
+import React, { useState } from 'react'
+import { useNavigate, Navigate } from 'react-router-dom';
+import { useTechs, useCreateTech } from '../hooks/UseTechs';
 import { z } from 'zod';
 import FormField from '../components/FormField';
 import Spinner from '../components/Spinner';
+import { UserAuth } from '../context/AuthContext';
  
 const techSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required"),
@@ -12,7 +13,6 @@ const techSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
  
-// Generates a readable random password, e.g. "quiet-otter-4821"
 const generatePassword = () => {
   const words = ["quiet", "swift", "coral", "amber", "cedar", "misty", "azure", "opal"];
   const animals = ["otter", "heron", "finch", "gecko", "sable", "raven", "ibex", "lynx"];
@@ -24,10 +24,17 @@ const generatePassword = () => {
  
 const Tech = () => {
   const navigate = useNavigate();
+  const { role } = UserAuth();
+
+  if (role !== 'OWNER') {
+    return <Navigate to="/dashboard" replace />;
+  }
  
-  const [techs, setTechs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [listError, setListError] = useState(null);
+  // Replaces: useState([]) + useState(true) + useEffect fetching getTechs().
+  // `data` defaults to undefined until loaded - `?? []` keeps the rest of
+  // the component simple. isLoading/isError are provided for free.
+  const { data: techs = [], isLoading, isError } = useTechs();
+  const createTechMutation = useCreateTech();
  
   const [showAddForm, setShowAddForm] = useState(false);
   const [firstName, setFirstName] = useState("");
@@ -36,34 +43,9 @@ const Tech = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState(null);
  
   const [newTechResult, setNewTechResult] = useState(null);
   const [copied, setCopied] = useState(false);
- 
-  useEffect(() => {
-    const fetchTechs = async () => {
-      try {
-        setLoading(true);
-        const response = await getTechs();
-        const list = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response?.techs)
-              ? response.techs
-              : [];
-        setTechs(list);
-      } catch (error) {
-        console.error("Error fetching techs:", error);
-        setListError("Couldn't load your techs.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTechs();
-  }, []);
  
   const resetForm = () => {
     setFirstName("");
@@ -74,36 +56,33 @@ const Tech = () => {
     setErrors({});
   };
  
-  const handleCreate = async () => {
-    if (submitting) return;
+  const handleCreate = () => {
+    if (createTechMutation.isPending) return;
  
     const validation = techSchema.safeParse({ firstName, lastName, email, password });
     if (!validation.success) {
       setErrors(validation.error.flatten().fieldErrors);
       return;
     }
+    setErrors({});
  
-    try {
-      setSubmitting(true);
-      setSubmitError(null);
-      setErrors({});
-      const result = await createTech(validation.data);
-      const createdTech = result?.user || result;
-      setTechs([...techs, createdTech]);
-      setNewTechResult({ tech: createdTech, password: validation.data.password });
-      resetForm();
-      setShowAddForm(false);
-    } catch (error) {
-      console.error("Error creating tech:", error);
-      const serverFieldErrors = error?.response?.data?.errors;
-      if (serverFieldErrors) {
-        setErrors(serverFieldErrors);
-      } else {
-        setSubmitError(error?.response?.data?.error || "Couldn't add that tech. Please try again.");
-      }
-    } finally {
-      setSubmitting(false);
-    }
+    // .mutate() takes the payload and callback options - onSuccess here is
+    // local to this call (for the password-reveal UI), separate from the
+    // onSuccess inside useCreateTech itself (which handles cache invalidation).
+    // Both run.
+    createTechMutation.mutate(validation.data, {
+      onSuccess: (result) => {
+        const createdTech = result?.user || result;
+        setNewTechResult({ tech: createdTech, password: validation.data.password });
+        resetForm();
+        setShowAddForm(false);
+      },
+      onError: (error) => {
+        console.error("Error creating tech:", error);
+        const serverFieldErrors = error?.response?.data?.errors;
+        if (serverFieldErrors) setErrors(serverFieldErrors);
+      },
+    });
   };
  
   const handleCopyPassword = async () => {
@@ -172,9 +151,9 @@ const Tech = () => {
           <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
             <h2 className="text-base font-medium text-slate-900 mb-4">Add a technician</h2>
  
-            {submitError && (
+            {createTechMutation.isError && !Object.keys(errors).length && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
-                {submitError}
+                {createTechMutation.error?.response?.data?.error || "Couldn't add that tech. Please try again."}
               </div>
             )}
  
@@ -239,40 +218,39 @@ const Tech = () => {
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => { setShowAddForm(false); resetForm(); }}
-                disabled={submitting}
+                disabled={createTechMutation.isPending}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreate}
-                disabled={submitting}
+                disabled={createTechMutation.isPending}
                 className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {submitting && <Spinner />}
-                {submitting ? "Adding..." : "Add technician"}
+                {createTechMutation.isPending && <Spinner />}
+                {createTechMutation.isPending ? "Adding..." : "Add technician"}
               </button>
             </div>
           </section>
         )}
  
-        {/* Tech list */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200">
             <h2 className="text-base font-medium text-slate-900">
-              All techs {!loading && (
+              All techs {!isLoading && (
                 <span className="text-slate-400 font-normal">({techs.length})</span>
               )}
             </h2>
           </div>
  
-          {listError && (
+          {isError && (
             <div className="mx-5 mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {listError}
+              Couldn't load your techs.
             </div>
           )}
  
-          {loading ? (
+          {isLoading ? (
             <ul className="divide-y divide-slate-100">
               {[...Array(2)].map((_, i) => (
                 <li key={i} className="px-5 py-4 flex items-center gap-3 animate-pulse">
@@ -303,12 +281,6 @@ const Tech = () => {
                     </p>
                     <p className="text-sm text-slate-500 truncate">{tech.email}</p>
                   </div>
-                  <svg
-                    className="ml-auto h-4 w-4 text-slate-300 shrink-0"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
                 </li>
               ))}
             </ul>

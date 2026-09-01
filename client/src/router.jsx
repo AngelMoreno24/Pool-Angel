@@ -16,6 +16,7 @@ import TechnicianDetails from './pages/TechnicianDetails';
 import Job from './pages/Job';
 import JobDetails from './pages/JobDetails';
 import Route from './pages/Route';
+import TechRoute from './pages/TechRoute';
 
 export const router = createBrowserRouter([
   {
@@ -59,11 +60,19 @@ export const router = createBrowserRouter([
       },
       {
         path: "/technicians",
-        element: <Technicians />,
+        element: (
+          <PrivateRoute requiredRole="OWNER">
+            <Technicians />
+          </PrivateRoute>
+        ),
       },
       {
         path: "/technicians/:id",
-        element: <TechnicianDetails />,
+        element: (
+          <PrivateRoute requiredRole="OWNER">
+            <TechnicianDetails />
+          </PrivateRoute>
+        ),
       },
       {
         path: "/jobs",
@@ -75,7 +84,19 @@ export const router = createBrowserRouter([
       },
       {
         path: "/route",
-        element: <Route />,
+        element: (
+          <PrivateRoute requiredRole="OWNER">
+            <Route />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "/my-route",
+        element: (
+          <PrivateRoute requiredRole="TECH">
+            <TechRoute />
+          </PrivateRoute>
+        ),
       },
     ],
   },
