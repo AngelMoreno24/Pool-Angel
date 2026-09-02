@@ -35,7 +35,7 @@ export const syncUser = async (req, res, next) => {
       });
     }
 
-    if (user.companyId !== company.id) {
+    if (user.companyId !== company.id && user.role === "OWNER") {
       user = await prisma.user.update({
         where: {
           id: user.id,

@@ -76,11 +76,19 @@ export const router = createBrowserRouter([
       },
       {
         path: "/jobs",
-        element: <Job />,
+        element: (
+          <PrivateRoute requiredRole="OWNER">
+            <Job />
+          </PrivateRoute>
+        ),
       },
       {
         path: "/jobs/:id",
-        element: <JobDetails />,
+        element: (
+          <PrivateRoute requiredRole="OWNER">
+            <JobDetails />
+          </PrivateRoute>
+        ),
       },
       {
         path: "/route",
@@ -93,7 +101,7 @@ export const router = createBrowserRouter([
       {
         path: "/my-route",
         element: (
-          <PrivateRoute requiredRole="TECH">
+          <PrivateRoute >
             <TechRoute />
           </PrivateRoute>
         ),

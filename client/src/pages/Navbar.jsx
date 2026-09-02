@@ -13,7 +13,6 @@ const NAV_LINKS = {
   ],
   TECH: [
     { to: "/dashboard", label: "Dashboard" },
-    { to: "/jobs", label: "Jobs" },
     { to: "/my-route", label: "MyRoute" },
   ],
 };
