@@ -8,6 +8,7 @@ import { getjob, getjobByTech, createjob, updatejob } from '../services/jobServi
 import { getCustomers } from '../services/customerService';
 import { getPropertiesByCustomer } from '../services/propertyService';
 import { getTechs } from '../services/techService';
+import { getVisits } from '../services/visitService';
 import FormField from '../components/FormField';
 import Spinner from '../components/Spinner';
 import JobEditModal from '../components/JobEditModal';
@@ -24,9 +25,9 @@ L.Icon.Default.mergeOptions({
  
 // A small numbered circle marker, matching each stop's position in the
 // route order - built fresh per stop since the number depends on index.
-const createNumberedIcon = (number) => L.divIcon({
+const createNumberedIcon = (number, color = '#4f46e5') => L.divIcon({
   className: 'route-numbered-marker',
-  html: `<div style="background:#4f46e5;color:white;border-radius:9999px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">${number}</div>`,
+  html: `<div style="background:${color};color:white;border-radius:9999px;width:26px;height:26px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);">${number}</div>`,
   iconSize: [26, 26],
   iconAnchor: [13, 13],
   popupAnchor: [0, -13],
@@ -53,6 +54,7 @@ const Route = () => {
   }
 
   const [jobs, setJobs] = useState([]);
+  const [visits, setVisits] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [properties, setProperties] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
@@ -67,6 +69,7 @@ const Route = () => {
   const [status, setStatus] = useState("ACTIVE");
   const [defaultTechId, setDefaultTechId] = useState("");
   const [dayOfWeek, setDayOfWeek] = useState(1); // defaults to Monday
+  const [routeFilter, setRouteFilter] = useState('ALL');
  
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(true);
@@ -103,13 +106,18 @@ const Route = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [jobsResponse, customersResponse, techsResponse] = await Promise.all([
-          getjobByTech(session.user.id),
+        const [jobsResponse, customersResponse, techsResponse, visitsResponse] = await Promise.all([
+          role === 'OWNER' ? getjob() : getjobByTech(session?.user?.id),
           getCustomers(),
-          getTechs()
+          getTechs(),
+          getVisits()
         ]);
+
         const jobsList = Array.isArray(jobsResponse) ? jobsResponse : jobsResponse?.data || [];
         setJobs(jobsList);
+
+        const visitsList = Array.isArray(visitsResponse) ? visitsResponse : visitsResponse?.data || [];
+        setVisits(visitsList);
  
         const customersList = Array.isArray(customersResponse) ? customersResponse : customersResponse?.data || [];
         setCustomers(customersList);
@@ -147,7 +155,7 @@ const Route = () => {
       }
     }
     fetchData();
-  }, []);
+  }, [role, session?.user?.id]);
  
   useEffect(() => {
     const fetchProperties = async () => {
@@ -172,10 +180,36 @@ const Route = () => {
     fetchProperties();
   }, [customerId]);
  
-  // Jobs scheduled for the currently selected weekday only.
+  const ownerProfile = useMemo(
+    () => techs.find((tech) => tech.role === 'OWNER'),
+    [techs]
+  );
+
+  const routeFilterOptions = useMemo(() => {
+    const options = [{ id: 'ALL', label: 'All assignments' }];
+
+    if (ownerProfile) {
+      options.push({ id: ownerProfile.id, label: `${ownerProfile.firstName || 'Owner'} ${ownerProfile.lastName || ''}`.trim() + ' (Owner)' });
+    }
+
+    techs
+      .filter((tech) => tech.role === 'TECH')
+      .forEach((tech) => {
+        options.push({ id: tech.id, label: `${tech.firstName || 'Tech'} ${tech.lastName || ''}`.trim() });
+      });
+
+    return options;
+  }, [ownerProfile, techs]);
+
+  // Jobs scheduled for the currently selected weekday only, filtered to the
+  // currently selected route owner/tech when the owner is planning routes.
   const jobsForSelectedDay = useMemo(
-    () => jobs.filter((job) => job.dayOfWeek === selectedDay),
-    [jobs, selectedDay]
+    () => jobs.filter((job) => {
+      if (job.dayOfWeek !== selectedDay) return false;
+      if (routeFilter === 'ALL') return true;
+      return job.defaultTechId === routeFilter;
+    }),
+    [jobs, selectedDay, routeFilter]
   );
  
   // Whenever the selected day (or the underlying job data) changes, reset
@@ -288,25 +322,68 @@ const Route = () => {
     }
   };
  
-  // Job sites with valid coordinates, in the selected day's route order -
-  // drives both the marker list and the connecting line on the map.
-  // Memoized so the travel-time effect below only re-runs when the actual
-  // set/order of stops changes, not on every unrelated render.
+  const routeColorMap = useMemo(() => {
+    const palette = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899', '#06b6d4', '#8b5cf6', '#ef4444'];
+    const map = {};
+
+    techs.forEach((tech, index) => {
+      const safeColor = tech.role === 'OWNER' ? '#4f46e5' : palette[index % palette.length];
+      map[tech.id] = safeColor;
+    });
+
+    return map;
+  }, [techs]);
+
+  // Job sites with valid coordinates, grouped by assignee so the map shows
+  // separate connected lines for each owner/tech route while preserving the
+  // current route order within each individual route.
+  const routeStopGroups = useMemo(() => {
+    const groupedStops = new Map();
+
+    dayOrder.forEach((job) => {
+      const property = allProperties.find((p) => p.id === job.propertyId);
+      if (!property?.latitude || !property?.longitude) return;
+
+      const techId = job.defaultTechId || 'UNASSIGNED';
+      if (!groupedStops.has(techId)) {
+        groupedStops.set(techId, []);
+      }
+
+      groupedStops.get(techId).push({
+        job,
+        property,
+      });
+    });
+
+    const entries = Array.from(groupedStops.entries()).map(([techId, stops]) => {
+      const tech = techs.find((person) => person.id === techId);
+      return {
+        techId,
+        techOrder: tech ? (tech.role === 'OWNER' ? 0 : 1) : 2,
+        techName: tech ? `${tech.firstName || 'Tech'} ${tech.lastName || ''}`.trim() : 'Unassigned',
+        color: techId === 'UNASSIGNED' ? '#94a3b8' : routeColorMap[techId] || '#94a3b8',
+        stops: stops.map((stop, index) => ({
+          ...stop,
+          displayOrder: index + 1,
+        })),
+      };
+    });
+
+    return entries.sort((a, b) => {
+      if (a.techOrder !== b.techOrder) return a.techOrder - b.techOrder;
+      return a.techName.localeCompare(b.techName);
+    });
+  }, [dayOrder, allProperties, routeColorMap, techs]);
+
   const routeStops = useMemo(() => (
-    dayOrder
-      .map((job) => {
-        const property = allProperties.find((p) => p.id === job.propertyId);
-        if (!property?.latitude || !property?.longitude) return null;
-        return { job, property };
-      })
-      .filter(Boolean)
-  ), [dayOrder, allProperties]);
- 
+    routeStopGroups.flatMap((group) => group.stops)
+  ), [routeStopGroups]);
+
   // A stable key representing the current stops + their order - used as the
   // effect dependency instead of the routeStops array itself, since a new
   // array reference on every render would otherwise refetch constantly.
   const routeStopsKey = routeStops
-    .map((s) => `${s.job.id}:${s.property.latitude},${s.property.longitude}`)
+    .map((s) => `${s.job.id}:${s.property.latitude},${s.property.longitude}:${s.displayOrder}`)
     .join('|');
  
   useEffect(() => {
@@ -366,6 +443,94 @@ const Route = () => {
   const polylinePositions = routeStops.map((stop) => [stop.property.latitude, stop.property.longitude]);
  
   const selectedDayLabel = WORK_DAYS.find((d) => d.value === selectedDay)?.label;
+
+  const getAssignmentColor = (job) => {
+    if (!job?.defaultTechId) return '#94a3b8';
+    return routeColorMap[job.defaultTechId] || '#94a3b8';
+  };
+
+  const getAssignmentLabel = (job) => {
+    if (!job?.defaultTechId) return 'Unassigned';
+    const tech = techs.find((person) => person.id === job.defaultTechId);
+    if (!tech) return 'Assigned';
+    if (tech.role === 'OWNER') return 'Owner';
+    return `${tech.firstName || 'Tech'} ${tech.lastName || ''}`.trim();
+  };
+
+  const activeRouteTechName = useMemo(() => {
+    if (routeFilter === 'ALL') return 'All assignments';
+    const match = routeFilterOptions.find((option) => option.id === routeFilter);
+    return match?.label || 'Selected person';
+  }, [routeFilter, routeFilterOptions]);
+
+  const groupedDayOrder = useMemo(() => {
+    if (routeFilter !== 'ALL') {
+      return [{
+        techId: routeFilter,
+        label: activeRouteTechName,
+        color: routeColorMap[routeFilter] || '#4f46e5',
+        jobs: dayOrder,
+      }];
+    }
+
+    const groups = new Map();
+    dayOrder.forEach((job) => {
+      const techId = job.defaultTechId || 'UNASSIGNED';
+      if (!groups.has(techId)) {
+        const tech = techs.find((person) => person.id === techId);
+        groups.set(techId, {
+          techId,
+          label: techId === 'UNASSIGNED'
+            ? 'Unassigned'
+            : tech?.role === 'OWNER'
+              ? 'Owner'
+              : `${tech?.firstName || 'Tech'} ${tech?.lastName || ''}`.trim(),
+          color: techId === 'UNASSIGNED' ? '#94a3b8' : routeColorMap[techId] || '#94a3b8',
+          jobs: [],
+        });
+      }
+      groups.get(techId).jobs.push(job);
+    });
+
+    return Array.from(groups.values()).sort((a, b) => {
+      const aOrder = a.techId === 'UNASSIGNED' ? 2 : (techs.find((person) => person.id === a.techId)?.role === 'OWNER' ? 0 : 1);
+      const bOrder = b.techId === 'UNASSIGNED' ? 2 : (techs.find((person) => person.id === b.techId)?.role === 'OWNER' ? 0 : 1);
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.label.localeCompare(b.label);
+    });
+  }, [routeFilter, activeRouteTechName, routeColorMap, techs, dayOrder]);
+
+  const techRouteStatus = useMemo(() => {
+    const entries = techs
+      .filter((tech) => tech.role === 'TECH')
+      .map((tech) => {
+        const techJobs = jobs
+          .filter((job) => job.dayOfWeek === selectedDay && job.defaultTechId === tech.id)
+          .map((job) => {
+            const property = allProperties.find((p) => p.id === job.propertyId);
+            const customer = customers.find((c) => c.id === job.customerId);
+            const visit = [...visits]
+              .filter((v) => v.jobId === job.id)
+              .sort((a, b) => new Date(b.scheduledDate) - new Date(a.scheduledDate))[0];
+
+            return {
+              job,
+              property,
+              customer,
+              status: visit?.status || 'SCHEDULED',
+              notes: visit?.notes || job.notes || 'No notes recorded',
+            };
+          });
+
+        return {
+          tech,
+          jobs: techJobs,
+        };
+      })
+      .filter((entry) => entry.jobs.length > 0);
+
+    return entries;
+  }, [jobs, visits, techs, selectedDay, allProperties, customers]);
  
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -377,11 +542,36 @@ const Route = () => {
             Each day of the week has its own independent route - order jobs separately for each day.
           </p>
         </header>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Route for</label>
+              <select
+                value={routeFilter}
+                onChange={(event) => setRouteFilter(event.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              >
+                {routeFilterOptions.map((option) => (
+                  <option key={option.id} value={option.id}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 font-medium">
+              Showing: {activeRouteTechName}
+            </div>
+          </div>
+        </div>
  
         {/* Day tabs */}
         <div className="flex gap-1 bg-white rounded-xl border border-slate-200 shadow-sm p-1.5">
           {WORK_DAYS.map((day) => {
-            const count = jobs.filter((j) => j.dayOfWeek === day.value).length;
+            const count = jobs.filter((j) => {
+              if (j.dayOfWeek !== day.value) return false;
+              if (routeFilter === 'ALL') return true;
+              return j.defaultTechId === routeFilter;
+            }).length;
             const isActive = selectedDay === day.value;
             return (
               <button
@@ -412,7 +602,7 @@ const Route = () => {
               {routeStops.length === 0 && !loading && (
                 <p className="text-sm text-slate-400 mt-0.5">
                   {jobsForSelectedDay.length === 0
-                    ? `No jobs scheduled for ${selectedDayLabel} yet.`
+                    ? `No jobs assigned to ${activeRouteTechName.toLowerCase()} for ${selectedDayLabel} yet.`
                     : "No job sites have coordinates yet - they're geocoded automatically when a property is added."}
                 </p>
               )}
@@ -442,26 +632,44 @@ const Route = () => {
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
-              {polylinePositions.length > 1 && (
+              {routeFilter !== 'ALL' && polylinePositions.length > 1 && (
                 <Polyline positions={polylinePositions} pathOptions={{ color: "#4f46e5", weight: 3 }} />
               )}
-              {routeStops.map((stop, index) => (
-                <Marker
-                  key={stop.job.id}
-                  position={[stop.property.latitude, stop.property.longitude]}
-                  icon={createNumberedIcon(index + 1)}
-                >
-                  <Popup>
-                    <p className="font-medium">{index + 1}. {stop.job.title}</p>
-                    <p className="text-sm text-slate-500">{stop.property.address}</p>
-                    {travelLegs[index] && (
-                      <p className="text-xs text-indigo-600 mt-1">
-                        ~{travelLegs[index].durationMin} min / {travelLegs[index].distanceMi} mi to next stop
-                      </p>
-                    )}
-                  </Popup>
-                </Marker>
-              ))}
+              {routeFilter === 'ALL'
+                ? routeStopGroups.map((group) => (
+                    <Polyline
+                      key={group.techId || 'unassigned'}
+                      positions={group.stops.map((stop) => [stop.property.latitude, stop.property.longitude])}
+                      pathOptions={{ color: group.color, weight: 3 }}
+                    />
+                  ))
+                : routeStopGroups.length > 0 && routeStopGroups[0].stops.length > 1 && (
+                    <Polyline
+                      positions={routeStopGroups[0].stops.map((stop) => [stop.property.latitude, stop.property.longitude])}
+                      pathOptions={{ color: routeStopGroups[0].color, weight: 3 }}
+                    />
+                  )
+              }
+              {routeStops.map((stop) => {
+                const markerNumber = stop.displayOrder ?? 1;
+                return (
+                  <Marker
+                    key={stop.job.id}
+                    position={[stop.property.latitude, stop.property.longitude]}
+                    icon={createNumberedIcon(markerNumber, getAssignmentColor(stop.job))}
+                  >
+                    <Popup>
+                      <p className="font-medium">{markerNumber}. {stop.job.title}</p>
+                      <p className="text-sm text-slate-500">{stop.property.address}</p>
+                      {travelLegs[routeStops.findIndex((entry) => entry.job.id === stop.job.id)] && (
+                        <p className="text-xs text-indigo-600 mt-1">
+                          ~{travelLegs[routeStops.findIndex((entry) => entry.job.id === stop.job.id)].durationMin} min / {travelLegs[routeStops.findIndex((entry) => entry.job.id === stop.job.id)].distanceMi} mi to next stop
+                        </p>
+                      )}
+                    </Popup>
+                  </Marker>
+                );
+              })}
             </MapContainer>
           </div>
         </section>
@@ -474,7 +682,7 @@ const Route = () => {
                 <span className="text-slate-400 font-normal">({dayOrder.length})</span>
               )}
             </h2>
-            {dayOrder.length > 1 && (
+            {routeFilter !== 'ALL' && dayOrder.length > 1 && (
               <button
                 onClick={handleSaveRouteOrder}
                 disabled={savingOrder}
@@ -507,81 +715,175 @@ const Route = () => {
               <p className="text-sm text-slate-400 mt-1">Create one below and set its day to {selectedDayLabel}.</p>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {dayOrder.map((job, index) => {
-                const customer = customers.find(c => c.id === job.customerId);
-                const property = allProperties.find(p => p.id === job.propertyId);
-                const tech = techs.find(t => t.id === job.defaultTechId);
-                // This job's position within routeStops (only jobs with valid
-                // coordinates) - used to look up its travel leg "to next stop".
-                const stopIndex = routeStops.findIndex((s) => s.job.id === job.id);
-                const legToNext = stopIndex !== -1 ? travelLegs[stopIndex] : null;
-                return (
-                  <li key={job.id}>
-                    <div className="px-5 py-4 flex items-center gap-3">
-                      <div className="flex flex-col gap-0.5 shrink-0">
-                        <button
-                          onClick={() => moveJob(index, -1)}
-                          disabled={index === 0}
-                          className="h-6 w-6 flex items-center justify-center rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                          aria-label="Move up"
-                        >
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => moveJob(index, 1)}
-                          disabled={index === dayOrder.length - 1}
-                          className="h-6 w-6 flex items-center justify-center rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                          aria-label="Move down"
-                        >
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                      </div>
- 
-                      <span className="h-6 w-6 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
-                        {index + 1}
-                      </span>
- 
-                      <div
-                        onClick={() => setEditingJob(job)}
-                        className="min-w-0 flex-1 cursor-pointer"
-                      >
-                        <p className="text-sm font-medium text-slate-900 truncate">
-                          {job.title}
-                        </p>
-                        <p className="text-sm text-slate-500 truncate">
-                          {customer ? `${customer.firstName} ${customer.lastName}` : "—"} • {property?.address || "—"}
-                          {!property?.latitude && " (not on map yet)"}
-                        </p>
-                        <p className="text-xs text-slate-400 truncate mt-0.5">
-                          {job.frequency || "—"} • {job.jobType} • {tech ? `${tech.firstName} ${tech.lastName || ''}`.trim() : 'Unassigned'}
-                        </p>
-                      </div>
- 
-                      <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 shrink-0">
-                        {job.status || "ACTIVE"}
+            <div className="divide-y divide-slate-100">
+              {groupedDayOrder.map((group) => (
+                <div key={group.techId || 'unassigned'} className="px-4 py-3">
+                  {routeFilter === 'ALL' && (
+                    <div className="mb-3 flex items-center gap-2">
+                      <span
+                        className="inline-flex h-3 w-3 rounded-full"
+                        style={{ backgroundColor: group.color }}
+                      />
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {group.label}
                       </span>
                     </div>
- 
-                    {legToNext && (
-                      <div className="pl-[4.75rem] pb-2 -mt-1 flex items-center gap-1 text-xs text-indigo-600">
-                        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                        </svg>
-                        <span>{legToNext.durationMin} min / {legToNext.distanceMi} mi to next stop</span>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+                  )}
+
+                  <ul className="divide-y divide-slate-100">
+                    {group.jobs.map((job, index) => {
+                      const customer = customers.find(c => c.id === job.customerId);
+                      const property = allProperties.find(p => p.id === job.propertyId);
+                      const tech = techs.find(t => t.id === job.defaultTechId);
+                      const assignmentColor = getAssignmentColor(job);
+                      const assignmentLabel = getAssignmentLabel(job);
+                      const stopIndex = routeStops.findIndex((s) => s.job.id === job.id);
+                      const legToNext = stopIndex !== -1 ? travelLegs[stopIndex] : null;
+                      const groupIndex = group.jobs.findIndex((entry) => entry.id === job.id) + 1;
+
+                      return (
+                        <li key={job.id}>
+                          <div
+                            className="px-1 py-4 flex items-center gap-3 border-l-4"
+                            style={{
+                              borderLeftColor: assignmentColor,
+                              backgroundColor: routeFilter === 'ALL' ? 'rgba(148, 163, 184, 0.04)' : 'transparent',
+                            }}
+                          >
+                            {routeFilter !== 'ALL' && (
+                              <div className="flex flex-col gap-0.5 shrink-0">
+                                <button
+                                  onClick={() => moveJob(index, -1)}
+                                  disabled={index === 0}
+                                  className="h-6 w-6 flex items-center justify-center rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  aria-label="Move up"
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => moveJob(index, 1)}
+                                  disabled={index === dayOrder.length - 1}
+                                  className="h-6 w-6 flex items-center justify-center rounded border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  aria-label="Move down"
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
+
+                            <span className="h-6 w-6 shrink-0 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-semibold">
+                              {groupIndex}
+                            </span>
+
+                            <div
+                              onClick={() => setEditingJob(job)}
+                              className="min-w-0 flex-1 cursor-pointer"
+                            >
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium text-slate-900 truncate">
+                                  {job.title}
+                                </p>
+                                {routeFilter === 'ALL' && (
+                                  <span
+                                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+                                    style={{ backgroundColor: assignmentColor }}
+                                  >
+                                    {assignmentLabel}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-slate-500 truncate">
+                                {customer ? `${customer.firstName} ${customer.lastName}` : "—"} • {property?.address || "—"}
+                                {!property?.latitude && " (not on map yet)"}
+                              </p>
+                              <p className="text-xs text-slate-400 truncate mt-0.5">
+                                {job.frequency || "—"} • {job.jobType} • {tech ? `${tech.firstName} ${tech.lastName || ''}`.trim() : 'Unassigned'}
+                              </p>
+                            </div>
+
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 shrink-0">
+                              {job.status || "ACTIVE"}
+                            </span>
+                          </div>
+
+                          {routeFilter !== 'ALL' && legToNext && (
+                            <div className="pl-[4.75rem] pb-2 -mt-1 flex items-center gap-1 text-xs text-indigo-600">
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                              </svg>
+                              <span>{legToNext.durationMin} min / {legToNext.distanceMi} mi to next stop</span>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
           )}
         </section>
  
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-200">
+            <h2 className="text-base font-medium text-slate-900">Tech route status</h2>
+          </div>
+
+          {techRouteStatus.length === 0 ? (
+            <div className="px-5 py-8 text-sm text-slate-500">
+              No assigned work for techs on {selectedDayLabel} yet.
+            </div>
+          ) : (
+            <div className="p-5 space-y-4">
+              {techRouteStatus.map(({ tech, jobs: techJobs }) => (
+                <div key={tech.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      {tech.firstName} {tech.lastName || ''}
+                    </h3>
+                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700">
+                      {techJobs.length} stops
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {techJobs.map(({ job, property, customer, status, notes }) => (
+                      <div key={job.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-slate-900">{job.title}</p>
+                            <p className="text-xs text-slate-500">
+                              {customer ? `${customer.firstName} ${customer.lastName}` : '—'} • {property?.address || '—'}
+                            </p>
+                          </div>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                            status === 'COMPLETED'
+                              ? 'bg-green-100 text-green-700'
+                              : status === 'IN_PROGRESS'
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-slate-200 text-slate-600'
+                          }`}>
+                            {status}
+                          </span>
+                        </div>
+
+                        <div className="mt-2 rounded-md bg-slate-50 p-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Notes</p>
+                          <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{notes}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
         {editingJob && (
           <JobEditModal
             job={editingJob}

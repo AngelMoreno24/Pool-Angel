@@ -7,17 +7,22 @@ export const createVisit = async (req, res, next) => {
  
         const { jobId, assignedTechId, scheduledDate, scheduledTime, status, notes, serviceData, routeOrder } = req.body;
  
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
  
-        if (!companyId || role !== "OWNER") {
+        if (!companyId) {
             return next(createError("Forbidden", 403));
         }
  
-        // Confirm the job actually belongs to this company before attaching
-        // a visit to it.
         const job = await prisma.job.findUnique({ where: { id: jobId } });
         if (!job || job.companyId !== companyId) {
             return next(createError("Invalid job", 400));
+        }
+
+        if (role === "TECH") {
+            const allowedTechId = assignedTechId ?? job.defaultTechId ?? dbUserId;
+            if (!allowedTechId || allowedTechId !== dbUserId) {
+                return next(createError("Forbidden", 403));
+            }
         }
  
         if (assignedTechId) {
@@ -31,7 +36,7 @@ export const createVisit = async (req, res, next) => {
             data: {
                 companyId,
                 jobId,
-                assignedTechId,
+                assignedTechId: role === "TECH" ? dbUserId : (assignedTechId ?? dbUserId),
                 scheduledDate,
                 scheduledTime,
                 status,
@@ -112,14 +117,29 @@ export const updateVisit = async (req, res, next) => {
  
         const { assignedTechId, scheduledDate, scheduledTime, status, notes, serviceData, routeOrder } = req.body;
  
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
  
-        if (!companyId || role !== "OWNER") {
+        if (!companyId) {
             return next(createError("Forbidden", 403));
         }
  
         if (!visitId) {
             return next(createError("Missing required fields", 400));
+        }
+
+        const existingVisit = await prisma.visit.findUnique({ where: { id: visitId } });
+        if (!existingVisit || existingVisit.companyId !== companyId) {
+            return next(createError("Visit not found", 404));
+        }
+
+        if (role === "TECH") {
+            const currentTechId = existingVisit.assignedTechId ?? (await prisma.job.findUnique({ where: { id: existingVisit.jobId }, select: { defaultTechId: true } }))?.defaultTechId;
+            if (currentTechId !== dbUserId) {
+                return next(createError("Forbidden", 403));
+            }
+            if (assignedTechId && assignedTechId !== dbUserId) {
+                return next(createError("Forbidden", 403));
+            }
         }
  
         if (assignedTechId) {
@@ -135,7 +155,7 @@ export const updateVisit = async (req, res, next) => {
                 companyId,
             },
             data: {
-                assignedTechId,
+                assignedTechId: role === "TECH" ? (assignedTechId ?? existingVisit.assignedTechId ?? dbUserId) : (assignedTechId ?? existingVisit.assignedTechId ?? dbUserId),
                 scheduledDate,
                 scheduledTime,
                 status,

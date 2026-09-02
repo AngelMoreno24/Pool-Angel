@@ -46,6 +46,7 @@ const TechRoute = () => {
   const [loadError, setLoadError] = useState(null);
   const [completingId, setCompletingId] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [noteDrafts, setNoteDrafts] = useState({});
  
   const today = new Date();
   const todayKey = dateKey(today);
@@ -151,11 +152,19 @@ const TechRoute = () => {
     setActionError(null);
  
     try {
-      const techId = selectedDayJobs[0]?.defaultTechId;
- 
+      const techId = stop.job.defaultTechId || selectedDayJobs[0]?.defaultTechId || session.user.id;
+      const noteText = (noteDrafts[stop.job.id] ?? '').trim();
+
       if (stop.visit) {
-        await updateVisit(stop.visit.id, { status: 'COMPLETED' });
-        setVisits(visits.map((v) => v.id === stop.visit.id ? { ...v, status: 'COMPLETED' } : v));
+        await updateVisit(stop.visit.id, {
+          status: 'COMPLETED',
+          notes: noteText || stop.visit.notes || stop.job.notes || undefined,
+        });
+        setVisits((prev) => prev.map((v) =>
+          v.id === stop.visit.id
+            ? { ...v, status: 'COMPLETED', notes: noteText || stop.visit.notes || stop.job.notes || v.notes }
+            : v
+        ));
       } else {
         // Uses the SELECTED date, not today - so marking a past or future
         // day complete records the visit against the day actually being viewed.
@@ -164,9 +173,12 @@ const TechRoute = () => {
           assignedTechId: techId,
           scheduledDate: selectedDate,
           status: 'COMPLETED',
+          notes: noteText || stop.job.notes || undefined,
         });
-        setVisits([...visits, created]);
+        setVisits((prev) => [...prev, created]);
       }
+
+      setNoteDrafts((prev) => ({ ...prev, [stop.job.id]: '' }));
     } catch (error) {
       console.error("Error marking job complete:", error);
       setActionError("Couldn't mark that job complete. Please try again.");
@@ -193,7 +205,17 @@ const TechRoute = () => {
   const selectedLabel = selectedKey === todayKey
     ? 'Today'
     : selectedDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
- 
+
+  const getDirectionsUrl = (stop) => {
+    if (!stop.property) return '#';
+
+    const destination = stop.property.latitude && stop.property.longitude
+      ? `${stop.property.latitude},${stop.property.longitude}`
+      : encodeURIComponent(stop.property.address || `${stop.customer?.firstName || ''} ${stop.customer?.lastName || ''}`.trim());
+
+    return `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -297,40 +319,88 @@ const TechRoute = () => {
           ) : (
             <ul className="divide-y divide-slate-100">
               {stops.map((stop, index) => (
-                <li key={stop.job.id} className={`px-5 py-4 flex items-center gap-3 ${stop.completed ? 'bg-green-50/40' : ''}`}>
-                  <span className={`h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold ${
-                    stop.completed ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
-                  }`}>
-                    {stop.completed ? '✓' : index + 1}
-                  </span>
- 
-                  <div className="min-w-0 flex-1">
-                    <p className={`text-sm font-medium truncate ${stop.completed ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
-                      {stop.job.title}
-                    </p>
-                    <p className="text-sm text-slate-500 truncate">
-                      {stop.customer ? `${stop.customer.firstName} ${stop.customer.lastName}` : "—"} • {stop.property?.address || "—"}
-                    </p>
+                <li key={stop.job.id} className={`px-5 py-4 ${stop.completed ? 'bg-green-50/40' : ''}`}>
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-0.5 h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold ${
+                      stop.completed ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
+                    }`}>
+                      {stop.completed ? '✓' : index + 1}
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm font-medium ${stop.completed ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                            {stop.job.title}
+                          </p>
+                          <p className="text-sm text-slate-500 truncate">
+                            {stop.customer ? `${stop.customer.firstName} ${stop.customer.lastName}` : "—"} • {stop.property?.address || "—"}
+                          </p>
+                        </div>
+
+                        {stop.property && (
+                          <a
+                            href={getDirectionsUrl(stop)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-500"
+                          >
+                            Directions
+                          </a>
+                        )}
+                      </div>
+
+                      {(stop.job.notes || stop.visit?.notes) && (
+                        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Notes</p>
+                          <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">
+                            {stop.visit?.notes || stop.job.notes}
+                          </p>
+                        </div>
+                      )}
+
+                      {!stop.completed && (
+                        <div className="mt-3">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                            Service note
+                          </label>
+                          <textarea
+                            value={noteDrafts[stop.job.id] ?? ''}
+                            onChange={(event) =>
+                              setNoteDrafts((prev) => ({
+                                ...prev,
+                                [stop.job.id]: event.target.value,
+                              }))
+                            }
+                            rows={2}
+                            placeholder="Add a note for this visit when you complete it..."
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </div>
+                      )}
+
+                      <div className="mt-3 flex items-center justify-end">
+                        {stop.completed ? (
+                          <button
+                            onClick={() => handleUndo(stop)}
+                            disabled={completingId === stop.job.id}
+                            className="shrink-0 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
+                          >
+                            {completingId === stop.job.id ? <Spinner /> : "Undo"}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleMarkComplete(stop)}
+                            disabled={completingId === stop.job.id}
+                            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                          >
+                            {completingId === stop.job.id && <Spinner />}
+                            {completingId === stop.job.id ? "Saving..." : "Mark complete"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
- 
-                  {stop.completed ? (
-                    <button
-                      onClick={() => handleUndo(stop)}
-                      disabled={completingId === stop.job.id}
-                      className="shrink-0 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
-                    >
-                      {completingId === stop.job.id ? <Spinner /> : "Undo"}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleMarkComplete(stop)}
-                      disabled={completingId === stop.job.id}
-                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors"
-                    >
-                      {completingId === stop.job.id && <Spinner />}
-                      {completingId === stop.job.id ? "Saving..." : "Mark complete"}
-                    </button>
-                  )}
                 </li>
               ))}
             </ul>
