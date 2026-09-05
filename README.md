@@ -2,11 +2,10 @@
 
 Pool Angel is a full-stack pool service operations platform for managing customers, properties, pools, recurring jobs, technician routes, service visits, and business reporting.
 
-> **Live demo:** [ADD LIVE DEMO URL]
->
-> **Demo accounts:** Add safe demo credentials here, or provide a "Try demo" flow. Never commit production credentials.
+https://am-pool-angel.netlify.app/
 
-![Pool Angel dashboard](docs/dashboard-screenshot.png)
+![Pool Angel dashboard](<img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/60a72c3f-7560-48a6-b774-62048947ccfe" />
+)
 
 ## Why This Project
 
@@ -52,11 +51,15 @@ Replace these placeholders with screenshots or short GIFs from the deployed app:
 
 | Dashboard | Route planning |
 | --- | --- |
-| ![Dashboard](docs/dashboard-screenshot.png) | ![Route planning](docs/route-screenshot.png) |
+| ![Dashboard](<img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/99b978ac-5ef8-4c2c-b33b-45a7af9fcbd6" />
+) | ![Route planning](<img width="1314" height="1223" alt="image" src="https://github.com/user-attachments/assets/be43a175-a239-445b-ab95-fbbe174ec255" />
+) |
 
 | Technician workflow | Operations reporting |
 | --- | --- |
-| ![Technician workflow](docs/technician-workflow-screenshot.png) | ![Operations reporting](docs/operations-screenshot.png) |
+| ![Technician workflow](<img width="1326" height="1292" alt="image" src="https://github.com/user-attachments/assets/779d5608-9a70-40eb-a169-37295c885f37" />
+) | ![Operations reporting](<img width="1311" height="931" alt="image" src="https://github.com/user-attachments/assets/59a9201e-7c6d-4d96-9f31-daea38c08a06" />
+) |
 
 ## Tech Stack
 
