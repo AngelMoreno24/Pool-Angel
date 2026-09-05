@@ -4,7 +4,8 @@ Pool Angel is a full-stack pool service operations platform for managing custome
 
 > **Live demo:**  [https://am-pool-angel.netlify.app/]
 
-<img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/99b978ac-5ef8-4c2c-b33b-45a7af9fcbd6" />
+<img width="1159" height="1056" alt="image" src="https://github.com/user-attachments/assets/13c73816-637c-4933-bf29-1eb0746ac3de" />
+
 
 ## Why This Project
 
@@ -50,7 +51,7 @@ Replace these placeholders with screenshots or short GIFs from the deployed app:
 
 | Dashboard | Route planning |
 | --- | --- |
-| <img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/99b978ac-5ef8-4c2c-b33b-45a7af9fcbd6" /> | <img width="1314" height="1223" alt="image" src="https://github.com/user-attachments/assets/be43a175-a239-445b-ab95-fbbe174ec255" />|
+| <img width="1159" height="1056" alt="image" src="https://github.com/user-attachments/assets/ffb03990-7908-4547-9d9b-7679c768f6ae" /> | <img width="1314" height="1223" alt="image" src="https://github.com/user-attachments/assets/be43a175-a239-445b-ab95-fbbe174ec255" />|
 
 | Technician workflow | Operations reporting |
 | --- | --- |
