@@ -15,6 +15,13 @@ const JOB_TYPE_FILTERS = [
   { value: "REPAIR", label: "Repair" },
   { value: "CHEMICAL_BALANCE", label: "Chemical Balance" },
 ];
+
+const JOB_TYPE_STYLES = {
+  RECURRING_CLEANING: { label: "Cleaning", classes: "bg-sky-100 text-sky-700" },
+  ONE_TIME_SERVICE: { label: "One-time service", classes: "bg-violet-100 text-violet-700" },
+  REPAIR: { label: "Repair", classes: "bg-orange-100 text-orange-700" },
+  CHEMICAL_BALANCE: { label: "Chemical balance", classes: "bg-cyan-100 text-cyan-700" },
+};
  
 const FREQUENCY_FILTERS = [
   { value: "ALL", label: "Any frequency" },
@@ -23,6 +30,13 @@ const FREQUENCY_FILTERS = [
   { value: "MONTHLY", label: "Monthly" },
   { value: "ONE_TIME", label: "One-time" },
 ];
+
+const FREQUENCY_STYLES = {
+  WEEKLY: { label: "Weekly", classes: "bg-indigo-100 text-indigo-700" },
+  BIWEEKLY: { label: "Biweekly", classes: "bg-amber-100 text-amber-700" },
+  MONTHLY: { label: "Monthly", classes: "bg-emerald-100 text-emerald-700" },
+  ONE_TIME: { label: "One-time", classes: "bg-rose-100 text-rose-700" },
+};
  
 const STATUS_FILTERS = [
   { value: "ALL", label: "Any status" },
@@ -111,7 +125,7 @@ const Job = () => {
     }
     fetchData();
   }, []);
- 
+
   useEffect(() => {
     const fetchProperties = async () => {
       if (!customerId) {
@@ -321,13 +335,29 @@ const Job = () => {
         {/* Jobs list */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200">
-            <h2 className="text-base font-medium text-slate-900">
-              {hasActiveFilters ? "Filtered jobs" : "All jobs"} {!loading && (
-                <span className="text-slate-400 font-normal">
-                  ({filteredJobs.length}{hasActiveFilters ? ` of ${jobs.length}` : ""})
-                </span>
-              )}
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-base font-medium text-slate-900">
+                {hasActiveFilters ? "Filtered jobs" : "All jobs"} {!loading && (
+                  <span className="text-slate-400 font-normal">
+                    ({filteredJobs.length}{hasActiveFilters ? ` of ${jobs.length}` : ""})
+                  </span>
+                )}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2" aria-label="Frequency legend">
+                {Object.entries(FREQUENCY_STYLES).map(([value, style]) => (
+                  <span key={value} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${style.classes}`}>
+                    {style.label}
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-wrap items-center gap-2" aria-label="Job type legend">
+                {Object.entries(JOB_TYPE_STYLES).map(([value, style]) => (
+                  <span key={value} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${style.classes}`}>
+                    {style.label}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
  
           {loading ? (
@@ -352,43 +382,66 @@ const Job = () => {
               </button>
             </div>
           ) : (
-            <ul className="divide-y divide-slate-100">
-              {filteredJobs.map((job) => {
-                const customer = customers.find(c => c.id === job.customerId);
-                const property = allProperties.find(p => p.id === job.propertyId);
-                const tech = techs.find(t => t.id === job.defaultTechId);
-                return (
-                <li
-                  key={job.id}
-                  onClick={() => navigate(`/jobs/${job.id}`)}
-                  className="px-5 py-4 flex items-center justify-between gap-3 cursor-pointer hover:bg-slate-50 transition-colors"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900 truncate">
-                      {job.title}
-                    </p>
-                    <p className="text-sm text-slate-500 truncate">
-                      {customer ? `${customer.firstName} ${customer.lastName}` : "—"} • {property?.address || "—"}
-                    </p>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">
-                      {job.frequency || "—"} • {job.jobType} • {tech ? `${tech.firstName} ${tech.lastName || ''}`.trim() : 'Unassigned'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-800">
-                      {job.status || "ACTIVE"}
-                    </span>
-                    <svg
-                      className="h-4 w-4 text-slate-300"
-                      fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            <div>
+              <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(0,1.4fr)_minmax(7rem,1fr)_minmax(7rem,1fr)_auto_auto] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500 lg:grid">
+                <span>Job</span>
+                <span>Customer / property</span>
+                <span>Schedule</span>
+                <span>Assigned tech</span>
+                <span>Status</span>
+                <span aria-hidden="true" />
+              </div>
+              <ul className="divide-y divide-slate-100">
+                {filteredJobs.map((job) => {
+                  const customer = customers.find(c => c.id === job.customerId);
+                  const property = allProperties.find(p => p.id === job.propertyId);
+                  const tech = techs.find(t => t.id === job.defaultTechId);
+                  return (
+                    <li
+                      key={job.id}
+                      onClick={() => navigate(`/jobs/${job.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') navigate(`/jobs/${job.id}`);
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      className="grid cursor-pointer gap-3 px-5 py-4 transition-colors hover:bg-slate-50 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.4fr)_minmax(7rem,1fr)_minmax(7rem,1fr)_auto_auto] lg:items-center lg:gap-4"
                     >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </li>
-                );
-              })}
-            </ul>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:hidden">Job</p>
+                        <p className="mt-0.5 truncate text-sm font-medium text-slate-900">{job.title}</p>
+                        <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${JOB_TYPE_STYLES[job.jobType]?.classes || 'bg-slate-100 text-slate-600'}`}>
+                          {JOB_TYPE_STYLES[job.jobType]?.label || job.jobType || 'Unknown type'}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:hidden">Customer / property</p>
+                        <p className="mt-0.5 truncate text-sm text-slate-700">{customer ? `${customer.firstName} ${customer.lastName}` : '—'}</p>
+                        <p className="truncate text-xs text-slate-500">{property?.address || 'No property'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:hidden">Schedule</p>
+                        <span className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${FREQUENCY_STYLES[job.frequency]?.classes || 'bg-slate-100 text-slate-600'}`}>
+                          {FREQUENCY_STYLES[job.frequency]?.label || 'One time'}
+                        </span>
+                        <p className="text-xs text-slate-500">{job.startDate ? new Date(job.startDate).toLocaleDateString() : 'No date'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:hidden">Assigned tech</p>
+                        <p className="mt-0.5 truncate text-sm text-slate-700">{tech ? `${tech.firstName} ${tech.lastName || ''}`.trim() : 'Unassigned'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 lg:hidden">Status</p>
+                        <span className="mt-1 inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">{job.status || 'ACTIVE'}</span>
+                      </div>
+                      <svg className="hidden h-4 w-4 self-center text-slate-300 lg:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </section>
  
