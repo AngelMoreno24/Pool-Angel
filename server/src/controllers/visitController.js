@@ -64,7 +64,9 @@ export const getVisits = async (req, res, next) => {
         }
  
         const visits = await prisma.visit.findMany({
-            where: { companyId },
+            where: role === "TECH"
+                ? { companyId, assignedTechId: req.user.dbUserId }
+                : { companyId },
             orderBy: { scheduledDate: "asc" },
         });
         return res.status(200).json(visits);
@@ -73,6 +75,40 @@ export const getVisits = async (req, res, next) => {
         return next(createError("Failed to fetch visits", 500, error.message));
     }
  
+};
+
+export const getPropertyVisits = async (req, res, next) => {
+    try {
+        const { propertyId } = req.params;
+        const { companyId, role, dbUserId } = req.user;
+
+        if (!companyId || !propertyId) {
+            return next(createError("Missing required fields", 400));
+        }
+
+        const property = await prisma.property.findFirst({
+            where: { id: propertyId, companyId },
+            select: { id: true },
+        });
+        if (!property) return next(createError("Property not found", 404));
+
+        const visits = await prisma.visit.findMany({
+            where: {
+                companyId,
+                job: { propertyId },
+                ...(role === "TECH" ? { assignedTechId: dbUserId } : {}),
+            },
+            include: {
+                job: { select: { id: true, title: true } },
+            },
+            orderBy: { scheduledDate: "desc" },
+        });
+
+        return res.status(200).json(visits);
+    } catch (error) {
+        console.error(error);
+        return next(createError("Failed to fetch property visit history", 500, error.message));
+    }
 };
  
  
@@ -84,7 +120,7 @@ export const getVisit = async (req, res, next) => {
  
         const { companyId, role } = req.user;
  
-        if (!companyId || role !== "OWNER") {
+        if (!companyId || !["OWNER", "TECH"].includes(role)) {
             return next(createError("Forbidden", 403));
         }
  
@@ -96,7 +132,7 @@ export const getVisit = async (req, res, next) => {
             where: { id: visitId },
         });
  
-        if (!visit || visit.companyId !== companyId) {
+        if (!visit || visit.companyId !== companyId || (role === "TECH" && visit.assignedTechId !== req.user.dbUserId)) {
             return next(createError("Visit not found", 404));
         }
  
@@ -210,4 +246,79 @@ export const deleteVisit = async (req, res, next) => {
         return next(createError("Failed to delete visit", 500, error.message));
     }
  
+};
+
+const getTechnicianVisit = async (visitId, companyId, role, dbUserId) => {
+    const visit = await prisma.visit.findUnique({ where: { id: visitId } });
+    if (!visit || visit.companyId !== companyId || (role === "TECH" && visit.assignedTechId !== dbUserId)) {
+        return null;
+    }
+    return visit;
+};
+
+export const checkInVisit = async (req, res, next) => {
+    try {
+        const { companyId, role, dbUserId } = req.user;
+        const visit = await getTechnicianVisit(req.params.visitId, companyId, role, dbUserId);
+        if (!visit) return next(createError("Visit not found", 404));
+        if (!["SCHEDULED", "IN_PROGRESS"].includes(visit.status)) {
+            return next(createError("This visit cannot be checked in", 400));
+        }
+
+        const updated = await prisma.visit.update({
+            where: { id: visit.id },
+            data: { status: "IN_PROGRESS", checkInAt: visit.checkInAt ?? new Date() },
+        });
+        return res.status(200).json(updated);
+    } catch (error) {
+        console.error(error);
+        return next(createError("Failed to check in visit", 500, error.message));
+    }
+};
+
+export const completeVisit = async (req, res, next) => {
+    try {
+        const { companyId, role, dbUserId } = req.user;
+        const visit = await getTechnicianVisit(req.params.visitId, companyId, role, dbUserId);
+        if (!visit) return next(createError("Visit not found", 404));
+        if (["SKIPPED", "CANCELLED"].includes(visit.status)) {
+            return next(createError("This visit cannot be completed", 400));
+        }
+
+        const { notes, readings } = req.body;
+        const updated = await prisma.visit.update({
+            where: { id: visit.id },
+            data: {
+                status: "COMPLETED",
+                checkInAt: visit.checkInAt ?? new Date(),
+                checkOutAt: new Date(),
+                notes: notes || visit.notes,
+                serviceData: { ...(visit.serviceData || {}), readings: readings || {}, completedAt: new Date().toISOString() },
+            },
+        });
+        return res.status(200).json(updated);
+    } catch (error) {
+        console.error(error);
+        return next(createError("Failed to complete visit", 500, error.message));
+    }
+};
+
+export const skipVisit = async (req, res, next) => {
+    try {
+        const { companyId, role, dbUserId } = req.user;
+        const visit = await getTechnicianVisit(req.params.visitId, companyId, role, dbUserId);
+        if (!visit) return next(createError("Visit not found", 404));
+        if (["COMPLETED", "CANCELLED"].includes(visit.status)) {
+            return next(createError("This visit cannot be skipped", 400));
+        }
+
+        const updated = await prisma.visit.update({
+            where: { id: visit.id },
+            data: { status: "SKIPPED", notes: req.body.reason },
+        });
+        return res.status(200).json(updated);
+    } catch (error) {
+        console.error(error);
+        return next(createError("Failed to skip visit", 500, error.message));
+    }
 };

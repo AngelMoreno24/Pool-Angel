@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getPropertyById, updateProperty, deleteProperty } from '../services/propertyService';
+import { getVisitsByProperty } from '../services/visitService';
 import { propertySchema } from '../schemas/propertySchema';
 import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
@@ -26,6 +27,9 @@ const PropertyDetails = () => {
  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [visits, setVisits] = useState([]);
+  const [visitsLoading, setVisitsLoading] = useState(true);
+  const [visitsError, setVisitsError] = useState(null);
  
   useEffect(() => {
     const fetchProperty = async () => {
@@ -45,6 +49,23 @@ const PropertyDetails = () => {
       }
     };
     fetchProperty();
+  }, [id]);
+
+  useEffect(() => {
+    const fetchVisitHistory = async () => {
+      try {
+        setVisitsLoading(true);
+        setVisitsError(null);
+        const response = await getVisitsByProperty(id);
+        setVisits(Array.isArray(response) ? response : response?.data || []);
+      } catch (err) {
+        console.error("Error fetching property visit history:", err);
+        setVisitsError("Couldn't load visit history.");
+      } finally {
+        setVisitsLoading(false);
+      }
+    };
+    fetchVisitHistory();
   }, [id]);
  
   const startEditing = () => {
@@ -302,6 +323,54 @@ const PropertyDetails = () => {
         </section>
  
         <PoolSection propertyId={id} />
+
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">Visit history</h2>
+              <p className="mt-1 text-xs text-slate-500">Service visits recorded at this property.</p>
+            </div>
+            {!visitsLoading && <span className="text-xs font-medium text-slate-500">{visits.length} visit{visits.length === 1 ? '' : 's'}</span>}
+          </div>
+
+          {visitsLoading ? (
+            <div className="px-6 py-8 text-sm text-slate-500">Loading visit history...</div>
+          ) : visitsError ? (
+            <div className="px-6 py-8 text-sm text-red-600">{visitsError}</div>
+          ) : visits.length === 0 ? (
+            <div className="px-6 py-8 text-sm text-slate-500">No visits have been recorded at this property.</div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {visits.map((visit) => {
+                const readings = visit.serviceData?.readings || {};
+                return (
+                  <li key={visit.id} className="px-6 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">{visit.job?.title || 'Service visit'}</p>
+                        <p className="text-xs text-slate-500">
+                          {new Date(visit.scheduledDate).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                          {visit.scheduledTime ? ` • ${visit.scheduledTime}` : ''}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{visit.status}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                      {visit.checkInAt && <span>Check-in: {new Date(visit.checkInAt).toLocaleString()}</span>}
+                      {visit.checkOutAt && <span>Check-out: {new Date(visit.checkOutAt).toLocaleString()}</span>}
+                    </div>
+                    {Object.keys(readings).length > 0 && (
+                      <p className="mt-2 text-xs text-emerald-700">
+                        Readings: {Object.entries(readings).map(([field, value]) => `${field === 'ph' ? 'pH' : field}: ${value}`).join(' • ')}
+                      </p>
+                    )}
+                    {visit.notes && <p className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">{visit.notes}</p>}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       </div>
  
       {showDeleteConfirm && (

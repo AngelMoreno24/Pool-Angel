@@ -4,7 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet'
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { getjobByTech } from '../services/jobService';
-import { getVisits, createVisit, updateVisit } from '../services/visitService';
+import { getVisits, createVisit, checkInVisit, completeVisit, skipVisit } from '../services/visitService';
 import { getPropertiesByCustomer } from '../services/propertyService';
 import { getCustomers } from '../services/customerService';
 import Spinner from '../components/Spinner';
@@ -44,9 +44,11 @@ const TechRoute = () => {
  
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const [completingId, setCompletingId] = useState(null);
+  const [actionId, setActionId] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [noteDrafts, setNoteDrafts] = useState({});
+  const [readingDrafts, setReadingDrafts] = useState({});
+  const [skipDrafts, setSkipDrafts] = useState({});
  
   const today = new Date();
   const todayKey = dateKey(today);
@@ -144,61 +146,91 @@ const TechRoute = () => {
     : DEFAULT_CENTER;
   const polylinePositions = mappedStops.map((s) => [s.property.latitude, s.property.longitude]);
  
-  const completedCount = stops.filter((s) => s.completed).length;
+  const completedCount = stops.filter((s) => s.visit?.status === 'COMPLETED').length;
+
+  const updateLocalVisit = (updatedVisit) => {
+    setVisits((prev) => {
+      const exists = prev.some((visit) => visit.id === updatedVisit.id);
+      return exists
+        ? prev.map((visit) => visit.id === updatedVisit.id ? updatedVisit : visit)
+        : [...prev, updatedVisit];
+    });
+  };
+
+  const ensureVisit = async (stop) => {
+    if (stop.visit) return stop.visit;
+    const created = await createVisit({
+      jobId: stop.job.id,
+      scheduledDate: selectedDate,
+      status: 'SCHEDULED',
+      notes: stop.job.notes || undefined,
+    });
+    updateLocalVisit(created);
+    return created;
+  };
+
+  const handleCheckIn = async (stop) => {
+    if (actionId) return;
+    setActionId(stop.job.id);
+    setActionError(null);
+    try {
+      const visit = await ensureVisit(stop);
+      const updated = await checkInVisit(visit.id);
+      updateLocalVisit(updated);
+    } catch (error) {
+      console.error("Error checking in visit:", error);
+      setActionError("Couldn't check in to that visit. Please try again.");
+    } finally {
+      setActionId(null);
+    }
+  };
  
   const handleMarkComplete = async (stop) => {
-    if (completingId) return;
-    setCompletingId(stop.job.id);
+    if (actionId) return;
+    setActionId(stop.job.id);
     setActionError(null);
  
     try {
-      const techId = stop.job.defaultTechId || selectedDayJobs[0]?.defaultTechId || session.user.id;
       const noteText = (noteDrafts[stop.job.id] ?? '').trim();
-
-      if (stop.visit) {
-        await updateVisit(stop.visit.id, {
-          status: 'COMPLETED',
-          notes: noteText || stop.visit.notes || stop.job.notes || undefined,
-        });
-        setVisits((prev) => prev.map((v) =>
-          v.id === stop.visit.id
-            ? { ...v, status: 'COMPLETED', notes: noteText || stop.visit.notes || stop.job.notes || v.notes }
-            : v
-        ));
-      } else {
-        // Uses the SELECTED date, not today - so marking a past or future
-        // day complete records the visit against the day actually being viewed.
-        const created = await createVisit({
-          jobId: stop.job.id,
-          assignedTechId: techId,
-          scheduledDate: selectedDate,
-          status: 'COMPLETED',
-          notes: noteText || stop.job.notes || undefined,
-        });
-        setVisits((prev) => [...prev, created]);
-      }
+      const visit = await ensureVisit(stop);
+      const readings = Object.fromEntries(
+        Object.entries(readingDrafts[stop.job.id] || {}).filter(([, value]) => value !== '')
+      );
+      const updated = await completeVisit(visit.id, {
+        notes: noteText || visit.notes || stop.job.notes || undefined,
+        readings,
+      });
+      updateLocalVisit(updated);
 
       setNoteDrafts((prev) => ({ ...prev, [stop.job.id]: '' }));
+      setReadingDrafts((prev) => ({ ...prev, [stop.job.id]: {} }));
     } catch (error) {
       console.error("Error marking job complete:", error);
       setActionError("Couldn't mark that job complete. Please try again.");
     } finally {
-      setCompletingId(null);
+      setActionId(null);
     }
   };
  
-  const handleUndo = async (stop) => {
-    if (completingId || !stop.visit) return;
-    setCompletingId(stop.job.id);
+  const handleSkip = async (stop) => {
+    if (actionId) return;
+    const reason = (skipDrafts[stop.job.id] ?? '').trim();
+    if (!reason) {
+      setActionError("Add a reason before skipping this visit.");
+      return;
+    }
+    setActionId(stop.job.id);
     setActionError(null);
     try {
-      await updateVisit(stop.visit.id, { status: 'SCHEDULED' });
-      setVisits(visits.map((v) => v.id === stop.visit.id ? { ...v, status: 'SCHEDULED' } : v));
+      const visit = await ensureVisit(stop);
+      const updated = await skipVisit(visit.id, reason);
+      updateLocalVisit(updated);
+      setSkipDrafts((prev) => ({ ...prev, [stop.job.id]: '' }));
     } catch (error) {
-      console.error("Error undoing completion:", error);
-      setActionError("Couldn't undo that. Please try again.");
+      console.error("Error skipping visit:", error);
+      setActionError("Couldn't skip that visit. Please try again.");
     } finally {
-      setCompletingId(null);
+      setActionId(null);
     }
   };
  
@@ -322,15 +354,15 @@ const TechRoute = () => {
                 <li key={stop.job.id} className={`px-5 py-4 ${stop.completed ? 'bg-green-50/40' : ''}`}>
                   <div className="flex items-start gap-3">
                     <span className={`mt-0.5 h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-semibold ${
-                      stop.completed ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
+                      stop.visit?.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : stop.visit?.status === 'SKIPPED' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
                     }`}>
-                      {stop.completed ? '✓' : index + 1}
+                      {stop.visit?.status === 'COMPLETED' ? '✓' : stop.visit?.status === 'SKIPPED' ? '–' : index + 1}
                     </span>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
-                          <p className={`text-sm font-medium ${stop.completed ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
+                          <p className={`text-sm font-medium ${stop.visit?.status === 'COMPLETED' ? 'text-slate-500 line-through' : 'text-slate-900'}`}>
                             {stop.job.title}
                           </p>
                           <p className="text-sm text-slate-500 truncate">
@@ -359,7 +391,30 @@ const TechRoute = () => {
                         </div>
                       )}
 
-                      {!stop.completed && (
+                      {stop.visit && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className={`rounded-full px-2 py-1 font-medium ${stop.visit.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : stop.visit.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : stop.visit.status === 'SKIPPED' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {stop.visit.status.replace('_', ' ')}
+                          </span>
+                          {stop.visit.checkInAt && <span>Checked in {new Date(stop.visit.checkInAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
+                          {stop.visit.checkOutAt && <span>Completed {new Date(stop.visit.checkOutAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>}
+                        </div>
+                      )}
+
+                      {stop.visit?.serviceData?.readings && Object.keys(stop.visit.serviceData.readings).length > 0 && (
+                        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700">Service readings</p>
+                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-emerald-900">
+                            {Object.entries(stop.visit.serviceData.readings).map(([field, value]) => (
+                              <span key={field}>
+                                {field === 'ph' ? 'pH' : field === 'waterTemperature' ? 'Water temp' : field.charAt(0).toUpperCase() + field.slice(1)}: {value}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {!['COMPLETED', 'SKIPPED'].includes(stop.visit?.status) && (
                         <div className="mt-3">
                           <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                             Service note
@@ -376,26 +431,59 @@ const TechRoute = () => {
                             placeholder="Add a note for this visit when you complete it..."
                             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                           />
+                          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                            {[
+                              ['chlorine', 'Chlorine'],
+                              ['ph', 'pH'],
+                              ['alkalinity', 'Alkalinity'],
+                              ['waterTemperature', 'Water temp'],
+                            ].map(([field, label]) => (
+                              <label key={field} className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                {label}
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0"
+                                  value={readingDrafts[stop.job.id]?.[field] ?? ''}
+                                  onChange={(event) => setReadingDrafts((prev) => ({
+                                    ...prev,
+                                    [stop.job.id]: { ...prev[stop.job.id], [field]: event.target.value },
+                                  }))}
+                                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm font-normal normal-case text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                />
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       )}
 
-                      <div className="mt-3 flex items-center justify-end">
-                        {stop.completed ? (
-                          <button
-                            onClick={() => handleUndo(stop)}
-                            disabled={completingId === stop.job.id}
-                            className="shrink-0 text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-50"
-                          >
-                            {completingId === stop.job.id ? <Spinner /> : "Undo"}
+                      <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                        {!stop.visit || stop.visit.status === 'SCHEDULED' ? (
+                          <button onClick={() => handleCheckIn(stop)} disabled={actionId === stop.job.id} className="rounded-lg border border-indigo-200 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">
+                            {actionId === stop.job.id ? <Spinner /> : 'Check in'}
                           </button>
-                        ) : (
+                        ) : null}
+                        {stop.visit?.status === 'IN_PROGRESS' || stop.visit?.status === 'SCHEDULED' ? (
                           <button
                             onClick={() => handleMarkComplete(stop)}
-                            disabled={completingId === stop.job.id}
+                            disabled={actionId === stop.job.id}
                             className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 transition-colors"
                           >
-                            {completingId === stop.job.id && <Spinner />}
-                            {completingId === stop.job.id ? "Saving..." : "Mark complete"}
+                            {actionId === stop.job.id && <Spinner />}
+                            {actionId === stop.job.id ? "Saving..." : "Complete visit"}
+                          </button>
+                        ) : null}
+                        {!['COMPLETED', 'SKIPPED'].includes(stop.visit?.status) && (
+                          <input
+                            value={skipDrafts[stop.job.id] ?? ''}
+                            onChange={(event) => setSkipDrafts((prev) => ({ ...prev, [stop.job.id]: event.target.value }))}
+                            placeholder="Reason to skip"
+                            className="order-last w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 sm:order-0 sm:w-40"
+                          />
+                        )}
+                        {!['COMPLETED', 'SKIPPED'].includes(stop.visit?.status) && (
+                          <button onClick={() => handleSkip(stop)} disabled={actionId === stop.job.id} className="rounded-lg border border-amber-200 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 disabled:opacity-50">
+                            Skip
                           </button>
                         )}
                       </div>
