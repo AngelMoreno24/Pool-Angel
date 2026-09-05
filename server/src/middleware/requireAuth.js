@@ -3,7 +3,7 @@ import prisma from "../lib/prisma.js";
 
 const requireAuth = async (req, res, next) => {
   try {
-    console.log("requireAuth middleware called");
+    //console.log("requireAuth middleware called");
 
     const authHeader = req.headers.authorization;
 

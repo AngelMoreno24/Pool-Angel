@@ -4,6 +4,7 @@ import { getjobById, updatejob, deletejob } from '../services/jobService';
 import { getCustomers } from '../services/customerService';
 import { getPropertiesByCustomer } from '../services/propertyService';
 import { getTechs } from '../services/techService';
+import { UserAuth } from '../context/AuthContext';
 import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import Spinner from '../components/Spinner';
@@ -11,6 +12,8 @@ import Spinner from '../components/Spinner';
 const JobDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { role } = UserAuth();
+  const isTech = role === 'TECH';
 
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -235,8 +238,8 @@ const JobDetails = () => {
           <p className="text-sm text-slate-500">
             {error || "This job couldn't be found."}
           </p>
-          <button
-            onClick={() => navigate("/jobs")}
+        <button
+          onClick={() => navigate(isTech ? "/dashboard" : "/jobs")}
             className="mt-4 text-sm font-medium text-indigo-600 hover:text-indigo-500"
           >
             Back to jobs
@@ -251,7 +254,7 @@ const JobDetails = () => {
       <div className="max-w-2xl mx-auto space-y-6">
 
         <button
-          onClick={() => navigate("/jobs")}
+            onClick={() => navigate(isTech ? "/dashboard" : "/jobs")}
           className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -280,7 +283,7 @@ const JobDetails = () => {
               <p className="text-xs text-slate-400 truncate mt-0.5">{job.jobType}</p>
             </div>
 
-            {!isEditing && (
+            {!isEditing && !isTech && (
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={startEditing}

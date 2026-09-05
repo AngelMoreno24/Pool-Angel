@@ -84,11 +84,7 @@ export const router = createBrowserRouter([
       },
       {
         path: "/jobs/:id",
-        element: (
-          <PrivateRoute requiredRole="OWNER">
-            <JobDetails />
-          </PrivateRoute>
-        ),
+        element: <PrivateRoute><JobDetails /></PrivateRoute>,
       },
       {
         path: "/route",

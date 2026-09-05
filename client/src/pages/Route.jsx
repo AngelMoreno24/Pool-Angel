@@ -75,6 +75,7 @@ const Route = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
  
   // Which day's route is currently being viewed/edited - defaults to
   // today if today is a work day, otherwise Monday.
@@ -534,13 +535,25 @@ const Route = () => {
  
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-8">
+      <div className="max-w-4xl mx-auto flex flex-col gap-8 [&>section]:order-2 [&>div]:order-2">
  
-        <header>
-          <h1 className="text-2xl font-semibold text-slate-900">Routes</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Each day of the week has its own independent route - order jobs separately for each day.
-          </p>
+        <header className="flex items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900">Routes</h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Each day of the week has its own independent route - order jobs separately for each day.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAddForm((value) => !value)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 transition-colors"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add route job
+          </button>
         </header>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
@@ -897,7 +910,7 @@ const Route = () => {
         )}
  
         {/* Create job form */}
-        <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
+        {showAddForm && <section className="order-1! bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
           <h2 className="text-base font-medium text-slate-900 mb-4">Create a job</h2>
  
           {submitError && (
@@ -1034,6 +1047,14 @@ const Route = () => {
           <div className="mt-5 flex justify-end">
             <button
               type="button"
+              onClick={() => setShowAddForm(false)}
+              disabled={submitting}
+              className="mr-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
               disabled={submitting}
               onClick={handleCreate}
               className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
@@ -1042,7 +1063,7 @@ const Route = () => {
               {submitting ? "Creating..." : "Create job"}
             </button>
           </div>
-        </section>
+        </section>}
  
       </div>
     </div>

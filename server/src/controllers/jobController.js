@@ -104,7 +104,7 @@ export const getJob = async (req, res, next) => {
  
         const { companyId, role } = req.user;
  
-        if (!companyId || role !== "OWNER") {
+        if (!companyId || !["OWNER", "TECH"].includes(role)) {
             return next(createError("Forbidden", 403));
         }
  
@@ -116,7 +116,7 @@ export const getJob = async (req, res, next) => {
             where: { id: jobId },
         });
  
-        if (!job || job.companyId !== companyId) {
+        if (!job || job.companyId !== companyId || (role === "TECH" && job.defaultTechId !== req.user.dbUserId)) {
             return next(createError("Job not found", 404));
         }
  

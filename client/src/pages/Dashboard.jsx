@@ -57,7 +57,7 @@ const jobOccursOnDate = (job, date) => {
  
 const Dashboard = () => {
  
-  const { session, signOut } = UserAuth();
+  const { session, role, signOut } = UserAuth();
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
@@ -65,6 +65,8 @@ const Dashboard = () => {
   // Which calendar day is selected - defaults to today, changes when a
   // week cell is clicked.
   const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const [calendarView, setCalendarView] = useState('week');
+  const [calendarDate, setCalendarDate] = useState(() => new Date());
  
   const navigate = useNavigate();
  
@@ -92,8 +94,8 @@ const Dashboard = () => {
         setJobsLoading(true);
  
         const [customersResponse, jobsResponse] = await Promise.all([
-          getCustomers(),
-          getjob()
+          role === 'TECH' ? Promise.resolve([]) : getCustomers(),
+          getjob(),
         ]);
  
         setCustomers(toArray(customersResponse));
@@ -107,7 +109,7 @@ const Dashboard = () => {
     };
  
     fetchDashboardData();
-  }, [session]);
+  }, [role, session]);
  
   const byMostRecent = (a, b) =>
     new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
@@ -123,25 +125,49 @@ const Dashboard = () => {
     .sort((a, b) => new Date(a.startDate) - new Date(b.startDate))
     .slice(0, 5);
  
-  // Current week only - Sunday through Saturday, no month navigation needed.
   const today = new Date();
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - today.getDay());
+  const weekStart = new Date(calendarDate);
+  weekStart.setDate(calendarDate.getDate() - calendarDate.getDay());
  
   const weekDays = Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + index);
     return date;
   });
+
+  const monthStart = new Date(calendarDate.getFullYear(), calendarDate.getMonth(), 1);
+  const monthGridStart = new Date(monthStart);
+  monthGridStart.setDate(monthStart.getDate() - monthStart.getDay());
+  const calendarDays = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(monthGridStart);
+    date.setDate(monthGridStart.getDate() + index);
+    return date;
+  });
+
+  const visibleDays = calendarView === 'week' ? weekDays : calendarDays;
+  const calendarTitle = calendarView === 'week'
+    ? `${weekDays[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+    : calendarDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  const moveCalendar = (amount) => {
+    const nextDate = new Date(calendarDate);
+    if (calendarView === 'week') {
+      nextDate.setDate(calendarDate.getDate() + amount * 7);
+    } else {
+      nextDate.setDate(1);
+      nextDate.setMonth(calendarDate.getMonth() + amount);
+    }
+    setCalendarDate(nextDate);
+  };
+
+  const totalJobsInView = visibleDays.reduce(
+    (count, date) => count + getJobsForDate(date).length,
+    0
+  );
  
   const todayKey = today.toISOString().split('T')[0];
   const selectedKey = selectedDate.toISOString().split('T')[0];
   const jobsForSelectedDay = getJobsForDate(selectedDate);
- 
-  const totalJobsThisWeek = weekDays.reduce(
-    (count, date) => count + getJobsForDate(date).length,
-    0
-  );
  
   const initials = (first, last) =>
     `${first?.[0] ?? ""}${last?.[0] ?? ""}`.toUpperCase();
@@ -233,7 +259,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
  
           {/* Recent customers */}
-          <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          {role !== 'TECH' && <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-900">Recent customers</h2>
               <Link to="/customers" className="text-sm font-medium text-indigo-600 hover:text-indigo-500">
@@ -278,7 +304,7 @@ const Dashboard = () => {
                 ))}
               </ul>
             )}
-          </section>
+          </section>}
  
           <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
@@ -306,8 +332,9 @@ const Dashboard = () => {
                 {upcomingJobs.map((job) => {
                   const customer = customers.find((entry) => entry.id === job.customerId);
                   return (
-                    <li key={job.id} className="px-5 py-4">
-                      <div className="flex items-start justify-between gap-3">
+                    <li key={job.id}>
+                      <Link to={`/jobs/${job.id}`} className="block px-5 py-4 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-900 truncate">{job.title}</p>
                           <p className="text-sm text-slate-500 truncate">
@@ -317,10 +344,11 @@ const Dashboard = () => {
                         <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-blue-100 text-blue-800">
                           {job.status || 'ACTIVE'}
                         </span>
-                      </div>
-                      <p className="mt-2 text-xs text-slate-400">
-                        {formatJobDate(job.startDate)}
-                      </p>
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400">
+                          {formatJobDate(job.startDate)}
+                        </p>
+                      </Link>
                     </li>
                   );
                 })}
@@ -331,39 +359,61 @@ const Dashboard = () => {
           {/* This week's jobs - now recurrence-aware, not exact-date-only */}
           <section className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-900">This week</h2>
-              <span className="text-xs font-medium text-slate-500">
-                {weekDays[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                {' – '}
-                {weekDays[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-              </span>
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-semibold text-slate-900">Upcoming work</h2>
+                <div className="flex rounded-lg border border-slate-200 p-0.5">
+                  {['week', 'month'].map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      onClick={() => setCalendarView(view)}
+                      className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize ${calendarView === view ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      {view}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => moveCalendar(-1)} className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50" aria-label="Previous period">&lt;</button>
+                <span className="min-w-28 text-center text-xs font-medium text-slate-500">{calendarTitle}</span>
+                <button type="button" onClick={() => moveCalendar(1)} className="rounded border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50" aria-label="Next period">&gt;</button>
+              </div>
             </div>
  
             <div className="p-4">
               <div className="grid grid-cols-7 gap-2">
-                {weekDays.map((date, index) => {
+                {visibleDays.map((date, index) => {
                   const dateKey = date.toISOString().split('T')[0];
                   const dayJobs = getJobsForDate(date);
                   const isToday = dateKey === todayKey;
                   const isSelected = dateKey === selectedKey;
+                  const isOutsideMonth = calendarView === 'month' && date.getMonth() !== calendarDate.getMonth();
  
                   return (
-                    <button
+                    <div
                       key={dateKey}
-                      type="button"
                       onClick={() => setSelectedDate(date)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') setSelectedDate(date);
+                      }}
+                      role="button"
+                      tabIndex={0}
                       className={[
-                        'min-h-[120px] rounded-lg border p-2 text-left transition-colors',
+                        calendarView === 'week' ? 'min-h-30' : 'min-h-24',
+                        'rounded-lg border p-2 text-left transition-colors',
                         isSelected
                           ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
                           : isToday
                             ? 'border-indigo-200 bg-indigo-50/50 hover:bg-indigo-50'
-                            : 'border-slate-200 bg-slate-50 hover:bg-slate-100',
+                            : isOutsideMonth
+                              ? 'border-slate-100 bg-slate-50/50 text-slate-300 hover:bg-slate-100'
+                              : 'border-slate-200 bg-slate-50 hover:bg-slate-100',
                       ].join(' ')}
                     >
                       <div className="mb-1 flex items-center justify-between">
                         <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                          {WEEKDAYS[index]}
+                          {WEEKDAYS[date.getDay()]}
                         </span>
                         <span className={['text-xs font-medium', isSelected || isToday ? 'text-indigo-700' : 'text-slate-700'].join(' ')}>
                           {date.getDate()}
@@ -371,24 +421,29 @@ const Dashboard = () => {
                       </div>
  
                       <div className="space-y-1">
-                        {dayJobs.slice(0, 3).map((job) => (
-                          <div key={job.id} className="truncate rounded bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm">
+                        {dayJobs.slice(0, calendarView === 'week' ? 3 : 2).map((job) => (
+                          <Link
+                            key={job.id}
+                            to={`/jobs/${job.id}`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="block truncate rounded bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 shadow-sm hover:bg-indigo-100"
+                          >
                             {job.title}
-                          </div>
+                          </Link>
                         ))}
-                        {dayJobs.length > 3 && (
+                        {dayJobs.length > (calendarView === 'week' ? 3 : 2) && (
                           <div className="text-[10px] font-medium text-indigo-700">
-                            +{dayJobs.length - 3} more
+                            +{dayJobs.length - (calendarView === 'week' ? 3 : 2)} more
                           </div>
                         )}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
  
               <div className="mt-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
-                {totalJobsThisWeek} job{totalJobsThisWeek === 1 ? '' : 's'} scheduled this week
+                {totalJobsInView} job{totalJobsInView === 1 ? '' : 's'} scheduled in this {calendarView}
               </div>
             </div>
           </section>
@@ -422,7 +477,8 @@ const Dashboard = () => {
                 {jobsForSelectedDay.map((job) => {
                   const customer = customers.find((entry) => entry.id === job.customerId);
                   return (
-                    <li key={job.id} className="px-5 py-4 flex items-center gap-3">
+                    <li key={job.id}>
+                      <Link to={`/jobs/${job.id}`} className="px-5 py-4 flex items-center gap-3 hover:bg-slate-50 transition-colors">
                       <div className="h-9 w-9 shrink-0 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center">
                         <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -437,6 +493,7 @@ const Dashboard = () => {
                       <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-blue-100 text-blue-800 shrink-0">
                         {job.status || 'ACTIVE'}
                       </span>
+                      </Link>
                     </li>
                   );
                 })}
