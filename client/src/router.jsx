@@ -17,6 +17,7 @@ import Job from './pages/Job';
 import JobDetails from './pages/JobDetails';
 import Route from './pages/Route';
 import TechRoute from './pages/TechRoute';
+import Operations from './pages/Operations';
 
 export const router = createBrowserRouter([
   {
@@ -91,6 +92,14 @@ export const router = createBrowserRouter([
         element: (
           <PrivateRoute requiredRole="OWNER">
             <Route />
+          </PrivateRoute>
+        ),
+      },
+      {
+        path: "/operations",
+        element: (
+          <PrivateRoute requiredRole="OWNER">
+            <Operations />
           </PrivateRoute>
         ),
       },

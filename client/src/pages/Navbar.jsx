@@ -9,6 +9,7 @@ const NAV_LINKS = {
     { to: "/technicians", label: "Technicians" },
     { to: "/jobs", label: "Jobs" },
     { to: "/route", label: "Routes" },
+    { to: "/operations", label: "Operations" },
     { to: "/my-route", label: "MyRoute" },
   ],
   TECH: [
