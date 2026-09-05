@@ -4,8 +4,7 @@ Pool Angel is a full-stack pool service operations platform for managing custome
 
 https://am-pool-angel.netlify.app/
 
-![Pool Angel dashboard](<img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/60a72c3f-7560-48a6-b774-62048947ccfe" />
-)
+<img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/99b978ac-5ef8-4c2c-b33b-45a7af9fcbd6" />
 
 ## Why This Project
 
