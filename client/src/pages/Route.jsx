@@ -502,6 +502,13 @@ const Route = () => {
   }, [routeFilter, activeRouteTechName, routeColorMap, techs, dayOrder]);
 
   const techRouteStatus = useMemo(() => {
+    const today = new Date();
+    const routeWeekStart = new Date(today);
+    routeWeekStart.setDate(today.getDate() - today.getDay());
+    const selectedRouteDate = new Date(routeWeekStart);
+    selectedRouteDate.setDate(routeWeekStart.getDate() + selectedDay);
+    const selectedRouteDateKey = selectedRouteDate.toISOString().slice(0, 10);
+
     const entries = techs
       .filter((tech) => tech.role === 'TECH')
       .map((tech) => {
@@ -510,9 +517,9 @@ const Route = () => {
           .map((job) => {
             const property = allProperties.find((p) => p.id === job.propertyId);
             const customer = customers.find((c) => c.id === job.customerId);
-            const visit = [...visits]
-              .filter((v) => v.jobId === job.id)
-              .sort((a, b) => new Date(b.scheduledDate) - new Date(a.scheduledDate))[0];
+            const visit = visits.find((v) =>
+              v.jobId === job.id && v.scheduledDate?.slice(0, 10) === selectedRouteDateKey
+            );
 
             return {
               job,
