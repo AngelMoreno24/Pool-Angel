@@ -68,10 +68,10 @@ export const createVisit = async (req, res, next) => {
  
         return res.status(201).json(visit);
     } catch (error) {
-        console.error(error);
         if (error?.code === "P2002") {
             return next(createError("A visit already exists for this job on that date", 409));
         }
+        console.error(error);
         return next(createError("Failed to create visit", 500, error.message));
     }
  
