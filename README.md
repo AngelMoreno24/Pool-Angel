@@ -249,20 +249,6 @@ npm run build
 | `POST` | `/visits/:visitId/reschedule` | Owner rescheduling for skipped/cancelled work |
 | `POST` | `/visits/job/:jobId/generate` | Generate recurring occurrences for a date range |
 
-## Deployment Checklist
-
-Before sharing the live demo, replace the placeholders below:
-
-- [ ] Add the production frontend URL above
-- [ ] Add a safe demo login or temporary demo accounts
-- [ ] Add four screenshots under `docs/`
-- [ ] Deploy the frontend with `VITE_API_URL` pointing to the production API
-- [ ] Deploy the server with production `ORIGIN` and Supabase variables
-- [ ] Run `npx prisma migrate deploy` against the production database
-- [ ] Run the backend and frontend test commands in CI
-- [ ] Confirm demo accounts cannot access another company’s records
-- [ ] Confirm service-role secrets are not present in frontend bundles
-
 ## Known Tradeoffs
 
 - Recurring visits are generated explicitly for a requested date range rather than creating an unbounded number of rows.
