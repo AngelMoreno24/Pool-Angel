@@ -27,6 +27,20 @@ export const visitCompleteSchema = z.object({
 export const visitSkipSchema = z.object({
   reason: z.string().trim().min(1, "A reason is required").max(500),
 });
+
+export const visitRescheduleSchema = z.object({
+  scheduledDate: z.coerce.date({ errorMap: () => ({ message: "A valid scheduled date is required" }) }),
+  scheduledTime: z.string().trim().optional(),
+  assignedTechId: z.string().uuid("Invalid technician").optional(),
+});
+
+export const generateVisitsSchema = z.object({
+  from: z.coerce.date({ errorMap: () => ({ message: "A valid start date is required" }) }),
+  through: z.coerce.date({ errorMap: () => ({ message: "A valid end date is required" }) }),
+}).refine(({ from, through }) => through >= from, {
+  message: "The end date must be on or after the start date",
+  path: ["through"],
+});
  
 // For PUT /update/:visitId - every field optional, but still validated if present.
 export const visitUpdateSchema = visitSchema.partial();

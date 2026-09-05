@@ -1,5 +1,19 @@
 import prisma from "../lib/prisma.js";
 import { createError } from "../middleware/errorHandler.js";
+
+const toDateKey = (value) => new Date(value).toISOString().slice(0, 10);
+const normalizeScheduledDate = (value) => new Date(`${toDateKey(value)}T00:00:00.000Z`);
+
+const allowedTransitions = {
+    SCHEDULED: ["SCHEDULED", "IN_PROGRESS", "COMPLETED", "SKIPPED", "CANCELLED"],
+    IN_PROGRESS: ["IN_PROGRESS", "COMPLETED", "SKIPPED", "CANCELLED"],
+    COMPLETED: ["COMPLETED"],
+    SKIPPED: ["SKIPPED"],
+    CANCELLED: ["CANCELLED"],
+};
+
+const isAllowedTransition = (currentStatus, nextStatus) =>
+    allowedTransitions[currentStatus]?.includes(nextStatus) ?? false;
  
 export const createVisit = async (req, res, next) => {
  
@@ -9,8 +23,13 @@ export const createVisit = async (req, res, next) => {
  
         const { companyId, role, dbUserId } = req.user;
  
-        if (!companyId) {
+        if (!companyId || !["OWNER", "TECH"].includes(role)) {
             return next(createError("Forbidden", 403));
+        }
+
+        const nextStatus = status ?? "SCHEDULED";
+        if (role === "TECH" && nextStatus !== "SCHEDULED") {
+            return next(createError("Technicians must start visits from SCHEDULED", 403));
         }
  
         const job = await prisma.job.findUnique({ where: { id: jobId } });
@@ -37,9 +56,10 @@ export const createVisit = async (req, res, next) => {
                 companyId,
                 jobId,
                 assignedTechId: role === "TECH" ? dbUserId : (assignedTechId ?? dbUserId),
-                scheduledDate,
+                scheduledDate: normalizeScheduledDate(scheduledDate),
+                scheduledDateKey: toDateKey(scheduledDate),
                 scheduledTime,
-                status,
+                status: nextStatus,
                 notes,
                 serviceData,
                 routeOrder,
@@ -49,6 +69,9 @@ export const createVisit = async (req, res, next) => {
         return res.status(201).json(visit);
     } catch (error) {
         console.error(error);
+        if (error?.code === "P2002") {
+            return next(createError("A visit already exists for this job on that date", 409));
+        }
         return next(createError("Failed to create visit", 500, error.message));
     }
  
@@ -169,6 +192,9 @@ export const updateVisit = async (req, res, next) => {
         }
 
         if (role === "TECH") {
+            if (assignedTechId !== undefined || scheduledDate !== undefined || scheduledTime !== undefined || status !== undefined || routeOrder !== undefined) {
+                return next(createError("Technicians must use the visit workflow actions", 403));
+            }
             const currentTechId = existingVisit.assignedTechId ?? (await prisma.job.findUnique({ where: { id: existingVisit.jobId }, select: { defaultTechId: true } }))?.defaultTechId;
             if (currentTechId !== dbUserId) {
                 return next(createError("Forbidden", 403));
@@ -177,6 +203,14 @@ export const updateVisit = async (req, res, next) => {
                 return next(createError("Forbidden", 403));
             }
         }
+
+        if (status !== undefined && !isAllowedTransition(existingVisit.status, status)) {
+            return next(createError(`Cannot change a ${existingVisit.status} visit to ${status}`, 409));
+        }
+
+        const nextScheduledDate = scheduledDate === undefined
+            ? existingVisit.scheduledDate
+            : normalizeScheduledDate(scheduledDate);
  
         if (assignedTechId) {
             const tech = await prisma.user.findUnique({ where: { id: assignedTechId } });
@@ -185,14 +219,12 @@ export const updateVisit = async (req, res, next) => {
             }
         }
  
-        const result = await prisma.visit.updateMany({
-            where: {
-                id: visitId,
-                companyId,
-            },
+        const updated = await prisma.visit.update({
+            where: { id: visitId },
             data: {
                 assignedTechId: role === "TECH" ? (assignedTechId ?? existingVisit.assignedTechId ?? dbUserId) : (assignedTechId ?? existingVisit.assignedTechId ?? dbUserId),
-                scheduledDate,
+                scheduledDate: nextScheduledDate,
+                scheduledDateKey: toDateKey(nextScheduledDate),
                 scheduledTime,
                 status,
                 notes,
@@ -201,13 +233,12 @@ export const updateVisit = async (req, res, next) => {
             },
         });
  
-        if (result.count === 0) {
-            return next(createError("Visit not found", 404));
-        }
- 
-        return res.status(200).json({ message: "Visit updated successfully" });
+        return res.status(200).json(updated);
     } catch (error) {
         console.error(error);
+        if (error?.code === "P2002") {
+            return next(createError("A visit already exists for this job on that date", 409));
+        }
         return next(createError("Failed to update visit", 500, error.message));
     }
  
@@ -320,5 +351,98 @@ export const skipVisit = async (req, res, next) => {
     } catch (error) {
         console.error(error);
         return next(createError("Failed to skip visit", 500, error.message));
+    }
+};
+
+export const rescheduleVisit = async (req, res, next) => {
+    try {
+        const { visitId } = req.params;
+        const { scheduledDate, scheduledTime, assignedTechId } = req.body;
+        const { companyId, role } = req.user;
+
+        if (!companyId || role !== "OWNER") return next(createError("Forbidden", 403));
+
+        const existingVisit = await prisma.visit.findFirst({ where: { id: visitId, companyId } });
+        if (!existingVisit) return next(createError("Visit not found", 404));
+        if (!["SKIPPED", "CANCELLED"].includes(existingVisit.status)) {
+            return next(createError("Only skipped or cancelled visits can be rescheduled", 409));
+        }
+
+        if (assignedTechId) {
+            const tech = await prisma.user.findFirst({ where: { id: assignedTechId, companyId } });
+            if (!tech) return next(createError("Invalid technician", 400));
+        }
+
+        const updated = await prisma.visit.update({
+            where: { id: existingVisit.id },
+            data: {
+                scheduledDate: normalizeScheduledDate(scheduledDate),
+                scheduledDateKey: toDateKey(scheduledDate),
+                scheduledTime,
+                assignedTechId: assignedTechId ?? existingVisit.assignedTechId,
+                status: "SCHEDULED",
+                checkInAt: null,
+                checkOutAt: null,
+            },
+        });
+        return res.status(200).json(updated);
+    } catch (error) {
+        console.error(error);
+        if (error?.code === "P2002") return next(createError("A visit already exists for this job on that date", 409));
+        return next(createError("Failed to reschedule visit", 500, error.message));
+    }
+};
+
+export const generateJobVisits = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+        const { from, through } = req.body;
+        const { companyId, role, dbUserId } = req.user;
+
+        if (!companyId || role !== "OWNER") return next(createError("Forbidden", 403));
+
+        const job = await prisma.job.findFirst({ where: { id: jobId, companyId } });
+        if (!job) return next(createError("Job not found", 404));
+        if (job.status !== "ACTIVE") return next(createError("Only active jobs can generate visits", 409));
+
+        const start = normalizeScheduledDate(from < job.startDate ? job.startDate : from);
+        const requestedEnd = normalizeScheduledDate(through);
+        const end = job.endDate && job.endDate < requestedEnd ? normalizeScheduledDate(job.endDate) : requestedEnd;
+        const dayLimit = Math.ceil((end - start) / 86400000) + 1;
+        if (dayLimit > 367) return next(createError("Visit generation is limited to one year", 400));
+        if (end < start) return res.status(200).json({ created: 0, skipped: 0, visits: [] });
+
+        const dates = [];
+        for (let index = 0; index < dayLimit; index += 1) {
+            const date = new Date(start);
+            date.setUTCDate(start.getUTCDate() + index);
+            const diffDays = Math.round((date - normalizeScheduledDate(job.startDate)) / 86400000);
+            const frequency = job.frequency;
+            const occurs = !frequency || frequency === "ONE_TIME"
+                ? diffDays === 0
+                : frequency === "WEEKLY"
+                    ? diffDays >= 0 && diffDays % 7 === 0
+                    : frequency === "BIWEEKLY"
+                        ? diffDays >= 0 && diffDays % 14 === 0
+                        : diffDays >= 0 && diffDays % 28 === 0;
+            if (occurs) dates.push(date);
+        }
+
+        const result = await prisma.visit.createMany({
+            data: dates.map((date) => ({
+                companyId,
+                jobId,
+                assignedTechId: job.defaultTechId ?? dbUserId,
+                scheduledDate: date,
+                scheduledDateKey: toDateKey(date),
+                status: "SCHEDULED",
+            })),
+            skipDuplicates: true,
+        });
+
+        return res.status(201).json({ created: result.count, skipped: dates.length - result.count, dates: dates.map(toDateKey) });
+    } catch (error) {
+        console.error(error);
+        return next(createError("Failed to generate visits", 500, error.message));
     }
 };

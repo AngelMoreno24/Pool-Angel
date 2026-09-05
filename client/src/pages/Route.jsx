@@ -8,7 +8,7 @@ import { getjob, getjobByTech, createjob, updatejob } from '../services/jobServi
 import { getCustomers } from '../services/customerService';
 import { getPropertiesByCustomer } from '../services/propertyService';
 import { getTechs } from '../services/techService';
-import { getVisits } from '../services/visitService';
+import { getVisits, rescheduleVisit } from '../services/visitService';
 import FormField from '../components/FormField';
 import Spinner from '../components/Spinner';
 import JobEditModal from '../components/JobEditModal';
@@ -100,6 +100,8 @@ const Route = () => {
   const [travelLegs, setTravelLegs] = useState([]);
   const [travelLoading, setTravelLoading] = useState(false);
   const [travelError, setTravelError] = useState(null);
+  const [rescheduleDates, setRescheduleDates] = useState({});
+  const [reschedulingId, setReschedulingId] = useState(null);
  
   const navigate = useNavigate();
  
@@ -525,6 +527,8 @@ const Route = () => {
               job,
               property,
               customer,
+              visit,
+              occurrenceDate: selectedRouteDateKey,
               status: visit?.status || 'SCHEDULED',
               notes: visit?.notes || job.notes || 'No notes recorded',
             };
@@ -539,6 +543,23 @@ const Route = () => {
 
     return entries;
   }, [jobs, visits, techs, selectedDay, allProperties, customers]);
+
+  const handleRescheduleVisit = async (visit, jobId, fallbackDate) => {
+    if (!visit || reschedulingId === visit.id) return;
+    const scheduledDate = rescheduleDates[jobId] || fallbackDate;
+    setReschedulingId(visit.id);
+    setOrderError(null);
+    try {
+      const updated = await rescheduleVisit(visit.id, { scheduledDate });
+      setVisits((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setRescheduleDates((current) => ({ ...current, [jobId]: '' }));
+    } catch (error) {
+      console.error("Error rescheduling visit:", error);
+      setOrderError(error?.response?.data?.error || "Couldn't reschedule that visit. Please try again.");
+    } finally {
+      setReschedulingId(null);
+    }
+  };
  
   return (
     <div className="min-h-screen bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
@@ -871,7 +892,7 @@ const Route = () => {
                   </div>
 
                   <div className="space-y-3">
-                    {techJobs.map(({ job, property, customer, status, notes }) => (
+                    {techJobs.map(({ job, property, customer, visit, occurrenceDate, status, notes }) => (
                       <div key={job.id} className="rounded-lg border border-slate-200 bg-white p-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
@@ -895,6 +916,28 @@ const Route = () => {
                           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Notes</p>
                           <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{notes}</p>
                         </div>
+
+                        {visit && ['SKIPPED', 'CANCELLED'].includes(status) && (
+                          <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+                            <label className="text-xs font-medium text-slate-500">
+                              Reschedule date
+                              <input
+                                type="date"
+                                value={rescheduleDates[job.id] ?? ''}
+                                onChange={(event) => setRescheduleDates((current) => ({ ...current, [job.id]: event.target.value }))}
+                                className="mt-1 block rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm font-normal text-slate-700 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => handleRescheduleVisit(visit, job.id, occurrenceDate)}
+                              disabled={reschedulingId === visit.id || !(rescheduleDates[job.id] || occurrenceDate)}
+                              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {reschedulingId === visit.id ? 'Rescheduling...' : 'Reschedule'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

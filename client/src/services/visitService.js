@@ -46,3 +46,13 @@ export const getVisitsByProperty = async (propertyId) => {
   const response = await api.get(`/visits/property/${propertyId}`);
   return response.data;
 };
+
+export const rescheduleVisit = async (id, data) => {
+  const response = await api.post(`/visits/${id}/reschedule`, data);
+  return response.data;
+};
+
+export const generateJobVisits = async (jobId, data) => {
+  const response = await api.post(`/visits/job/${jobId}/generate`, data);
+  return response.data;
+};

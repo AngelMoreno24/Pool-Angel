@@ -222,6 +222,7 @@ model Visit {
   assignedTech    User?  @relation("AssignedTechForVisit", fields: [assignedTechId], references: [id])
 
   scheduledDate DateTime            // the day this visit is scheduled for
+  scheduledDateKey String            // UTC calendar date used to prevent duplicate occurrences
   scheduledTime String?             // e.g. "8:00 AM - 10:00 AM" - free text window is fine for v1
 
   status      VisitStatus @default(SCHEDULED)
@@ -246,6 +247,7 @@ model Visit {
   @@index([companyId])
   @@index([jobId])
   @@index([assignedTechId, scheduledDate])
+  @@unique([jobId, scheduledDateKey])
 }
 
 enum VisitStatus {
