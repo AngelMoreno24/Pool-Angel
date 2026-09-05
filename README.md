@@ -51,9 +51,7 @@ Replace these placeholders with screenshots or short GIFs from the deployed app:
 
 | Dashboard | Route planning |
 | --- | --- |
-| <img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/99b978ac-5ef8-4c2c-b33b-45a7af9fcbd6" />
-| <img width="1314" height="1223" alt="image" src="https://github.com/user-attachments/assets/be43a175-a239-445b-ab95-fbbe174ec255" />
-|
+| ![Dashboard]<img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/99b978ac-5ef8-4c2c-b33b-45a7af9fcbd6" /> | ![Route planning]<img width="1314" height="1223" alt="image" src="https://github.com/user-attachments/assets/be43a175-a239-445b-ab95-fbbe174ec255" />|
 
 | Technician workflow | Operations reporting |
 | --- | --- |
