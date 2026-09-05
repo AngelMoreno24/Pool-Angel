@@ -55,7 +55,7 @@ Replace these placeholders with screenshots or short GIFs from the deployed app:
 
 | Technician workflow | Operations reporting |
 | --- | --- |
-| <img width="1138" height="935" alt="image" src="https://github.com/user-attachments/assets/93291708-5b19-4a97-8fe1-c3fc86303c30" /> | <img width="1311" height="931" alt="image" src="https://github.com/user-attachments/assets/59a9201e-7c6d-4d96-9f31-daea38c08a06" />|
+| <img width="1138" height="935" alt="image" src="https://github.com/user-attachments/assets/93291708-5b19-4a97-8fe1-c3fc86303c30" /> | <img width="1153" height="900" alt="image" src="https://github.com/user-attachments/assets/0318c411-c87c-420b-b255-1e2b152e55de" /> |
 
 ## Tech Stack
 
