@@ -2,7 +2,7 @@
 
 Pool Angel is a full-stack pool service operations platform for managing customers, properties, pools, recurring jobs, technician routes, service visits, and business reporting.
 
-https://am-pool-angel.netlify.app/
+> **Live demo:**  [https://am-pool-angel.netlify.app/]
 
 <img width="1796" height="1290" alt="image" src="https://github.com/user-attachments/assets/99b978ac-5ef8-4c2c-b33b-45a7af9fcbd6" />
 
