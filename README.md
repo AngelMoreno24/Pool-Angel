@@ -2,11 +2,10 @@
 
 Pool Angel is a full-stack pool service operations platform for managing customers, properties, pools, recurring jobs, technician routes, service visits, and business reporting.
 
-> **Live demo:** [ADD LIVE DEMO URL]
->
-> **Demo accounts:** Add safe demo credentials here, or provide a "Try demo" flow. Never commit production credentials.
+> **Live demo:**  [https://am-pool-angel.netlify.app/]
 
-![Pool Angel dashboard](docs/dashboard-screenshot.png)
+<img width="1159" height="1056" alt="image" src="https://github.com/user-attachments/assets/13c73816-637c-4933-bf29-1eb0746ac3de" />
+
 
 ## Why This Project
 
@@ -52,11 +51,11 @@ Replace these placeholders with screenshots or short GIFs from the deployed app:
 
 | Dashboard | Route planning |
 | --- | --- |
-| ![Dashboard](docs/dashboard-screenshot.png) | ![Route planning](docs/route-screenshot.png) |
+| <img width="1159" height="1056" alt="image" src="https://github.com/user-attachments/assets/ffb03990-7908-4547-9d9b-7679c768f6ae" /> | <img width="1142" height="1021" alt="image" src="https://github.com/user-attachments/assets/d3f48f1d-049d-4e8c-9ca7-2bb777f0f043" /> |
 
 | Technician workflow | Operations reporting |
 | --- | --- |
-| ![Technician workflow](docs/technician-workflow-screenshot.png) | ![Operations reporting](docs/operations-screenshot.png) |
+| <img width="1138" height="935" alt="image" src="https://github.com/user-attachments/assets/93291708-5b19-4a97-8fe1-c3fc86303c30" /> | <img width="1153" height="900" alt="image" src="https://github.com/user-attachments/assets/0318c411-c87c-420b-b255-1e2b152e55de" /> |
 
 ## Tech Stack
 
@@ -249,20 +248,6 @@ npm run build
 | `POST` | `/visits/:visitId/skip` | Skip a visit with a reason |
 | `POST` | `/visits/:visitId/reschedule` | Owner rescheduling for skipped/cancelled work |
 | `POST` | `/visits/job/:jobId/generate` | Generate recurring occurrences for a date range |
-
-## Deployment Checklist
-
-Before sharing the live demo, replace the placeholders below:
-
-- [ ] Add the production frontend URL above
-- [ ] Add a safe demo login or temporary demo accounts
-- [ ] Add four screenshots under `docs/`
-- [ ] Deploy the frontend with `VITE_API_URL` pointing to the production API
-- [ ] Deploy the server with production `ORIGIN` and Supabase variables
-- [ ] Run `npx prisma migrate deploy` against the production database
-- [ ] Run the backend and frontend test commands in CI
-- [ ] Confirm demo accounts cannot access another company’s records
-- [ ] Confirm service-role secrets are not present in frontend bundles
 
 ## Known Tradeoffs
 
