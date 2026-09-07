@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
-import { getjobById, updatejob, deletejob } from '../services/jobService';
-import { getCustomers } from '../services/customerService';
-import { getPropertiesByCustomer } from '../services/propertyService';
-import { getTechs } from '../services/techService';
-import { getVisits } from '../services/visitService';
+import { useCustomers, useCustomerProperties, useDeleteJob, useJob, useTechsQuery, useUpdateJob, useVisits } from '../hooks/useAppQueries';
 import { UserAuth } from '../context/AuthContext';
 import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
@@ -15,9 +11,21 @@ const JobDetails = () => {
   const navigate = useNavigate();
   const { role } = UserAuth();
   const isTech = role === 'TECH';
+  const [customerId, setCustomerId] = useState("");
 
-  const [job, setJob] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const jobQuery = useJob(id);
+  const job = jobQuery.data;
+  const customersQuery = useCustomers();
+  const techsQuery = useTechsQuery();
+  const propertiesQuery = useCustomerProperties(customerId);
+  const visitsQuery = useVisits();
+  const updateJobMutation = useUpdateJob();
+  const deleteJobMutation = useDeleteJob();
+  const customers = customersQuery.data || [];
+  const techs = techsQuery.data || [];
+  const properties = propertiesQuery.data || [];
+  const visits = (visitsQuery.data || []).filter((visit) => visit.jobId === id);
+  const loading = jobQuery.isLoading;
   const [error, setError] = useState(null);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -32,130 +40,36 @@ const JobDetails = () => {
   const [endDate, setEndDate] = useState("");
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
-  const [customerId, setCustomerId] = useState("");
   const [propertyId, setPropertyId] = useState("");
   const [defaultTechId, setDefaultTechId] = useState("");
 
-  const [customers, setCustomers] = useState([]);
-  const [techs, setTechs] = useState([]);
-  const [properties, setProperties] = useState([]);
   const [jobCustomer, setJobCustomer] = useState(null);
   const [jobProperty, setJobProperty] = useState(null);
-  const [visits, setVisits] = useState([]);
-  const [visitsLoading, setVisitsLoading] = useState(true);
-  const [visitsError, setVisitsError] = useState(null);
+  const visitsLoading = visitsQuery.isLoading;
+  const visitsError = visitsQuery.isError ? "Couldn't load visit history." : null;
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    const fetchJob = async () => {
-      try {
-        setLoading(true);
-        const response = await getjobById(id);
-        setJob(response);
-        setTitle(response.title || "");
-        setJobType(response.jobType || "");
-        setFrequency(response.frequency || "");
-        setStatus(response.status || "ACTIVE");
-        setStartDate(response.startDate?.split('T')[0] || "");
-        setEndDate(response.endDate?.split('T')[0] || "");
-        setPrice(response.price || "");
-        setNotes(response.notes || "");
-        setCustomerId(response.customerId || "");
-        setPropertyId(response.propertyId || "");
-        setDefaultTechId(response.defaultTechId || "");
-      } catch (error) {
-        console.error("Error fetching job:", error);
-        setError("Couldn't load this job.");
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchJob();
-  }, [id]);
+    if (!job) return;
+    setTitle(job.title || "");
+    setJobType(job.jobType || "");
+    setFrequency(job.frequency || "");
+    setStatus(job.status || "ACTIVE");
+    setStartDate(job.startDate?.split('T')[0] || "");
+    setEndDate(job.endDate?.split('T')[0] || "");
+    setPrice(job.price || "");
+    setNotes(job.notes || "");
+    setCustomerId(job.customerId || "");
+    setPropertyId(job.propertyId || "");
+    setDefaultTechId(job.defaultTechId || "");
+  }, [job]);
 
   useEffect(() => {
-    const fetchVisitHistory = async () => {
-      try {
-        setVisitsLoading(true);
-        setVisitsError(null);
-        const response = await getVisits();
-        const list = Array.isArray(response) ? response : response?.data || [];
-        setVisits(list.filter((visit) => visit.jobId === id));
-      } catch (error) {
-        console.error("Error fetching job visit history:", error);
-        setVisitsError("Couldn't load visit history.");
-      } finally {
-        setVisitsLoading(false);
-      }
-    };
-    fetchVisitHistory();
-  }, [id]);
-
-  useEffect(() => {
-    const fetchCustomers = async () => {
-      try {
-        const response = await getCustomers();
-        const customersList = Array.isArray(response) ? response : response?.data || [];
-        setCustomers(customersList);
-        if (job && customerId) {
-          const found = customersList.find(c => c.id === customerId);
-          setJobCustomer(found || null);
-        }
-      } catch (error) {
-        console.error("Error fetching customers:", error);
-      }
-    }
-    fetchCustomers();
-  }, [job, customerId]);
-
-  useEffect(() => {
-    const fetchTechs = async () => {
-      try {
-        const response = await getTechs();
-        const list = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response?.techs)
-              ? response.techs
-              : [];
-        setTechs(list);
-      } catch (error) {
-        console.error("Error fetching techs:", error);
-      }
-    };
-    fetchTechs();
-  }, []);
-
-  useEffect(() => {
-    const fetchProperties = async () => {
-      if (!customerId) {
-        setProperties([]);
-        setJobProperty(null);
-        return;
-      }
-      try {
-        const response = await getPropertiesByCustomer(customerId);
-        const list = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response?.properties)
-              ? response.properties
-              : [];
-        setProperties(list);
-        if (propertyId) {
-          const found = list.find(p => p.id === propertyId);
-          setJobProperty(found || null);
-        }
-      } catch (error) {
-        console.error("Error fetching properties:", error);
-      }
-    }
-    fetchProperties();
-  }, [customerId, propertyId]);
+    setJobCustomer(customers.find((customer) => customer.id === customerId) || null);
+    setJobProperty(properties.find((property) => property.id === propertyId) || null);
+  }, [customers, customerId, properties, propertyId]);
 
   const startEditing = () => {
     setError(null);
@@ -207,9 +121,8 @@ const JobDetails = () => {
         ...(notes && { notes: notes.trim() }),
       };
 
-      const response = await updatejob(id, jobData);
+      const response = await updateJobMutation.mutateAsync({ id, data: jobData });
       const updated = response?.title ? response : response?.data?.title ? response.data : null;
-      setJob(updated || { ...job, ...jobData });
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating job:", error);
@@ -223,7 +136,7 @@ const JobDetails = () => {
     try {
       setDeleting(true);
       setError(null);
-      await deletejob(id);
+      await deleteJobMutation.mutateAsync(id);
       navigate("/jobs");
     } catch (error) {
       console.error("Error deleting job:", error);

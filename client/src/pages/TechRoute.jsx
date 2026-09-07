@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { UserAuth } from '../context/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getjobByTech } from '../services/jobService';
-import { getVisits, createVisit, checkInVisit, completeVisit, skipVisit } from '../services/visitService';
-import { getPropertiesByCustomer } from '../services/propertyService';
-import { getCustomers } from '../services/customerService';
+import { useAllCustomerProperties, useCheckInVisit, useCompleteVisit, useCreateVisit, useCustomers, useJobs, useSkipVisit, useVisits } from '../hooks/useAppQueries';
 import Spinner from '../components/Spinner';
  
 delete L.Icon.Default.prototype._getIconUrl;
@@ -37,12 +34,20 @@ const getMonday = (date) => {
 const TechRoute = () => {
   const { session } = UserAuth();
  
-  const [jobs, setJobs] = useState([]);
-  const [visits, setVisits] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
+  const jobsQuery = useJobs({ technicianId: session.user.id });
+  const visitsQuery = useVisits();
+  const customersQuery = useCustomers();
+  const jobs = jobsQuery.data || [];
+  const visits = visitsQuery.data || [];
+  const customers = customersQuery.data || [];
+  const allPropertiesQuery = useAllCustomerProperties(customers);
+  const allProperties = allPropertiesQuery.data || [];
+  const createVisitMutation = useCreateVisit();
+  const checkInMutation = useCheckInVisit();
+  const completeVisitMutation = useCompleteVisit();
+  const skipVisitMutation = useSkipVisit();
  
-  const [loading, setLoading] = useState(true);
+  const loading = jobsQuery.isLoading || visitsQuery.isLoading || customersQuery.isLoading || allPropertiesQuery.isLoading;
   const [loadError, setLoadError] = useState(null);
   const [actionId, setActionId] = useState(null);
   const [actionError, setActionError] = useState(null);
@@ -75,50 +80,6 @@ const TechRoute = () => {
   const selectedKey = dateKey(selectedDate);
   const selectedDow = selectedDate.getDay();
  
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setLoadError(null);
- 
-        const [jobsResponse, visitsResponse, customersResponse] = await Promise.all([
-          getjobByTech(session.user.id),
-          getVisits(),
-          getCustomers(),
-        ]);
- 
-        const jobsList = Array.isArray(jobsResponse) ? jobsResponse : jobsResponse?.data || [];
-        setJobs(jobsList);
- 
-        const visitsList = Array.isArray(visitsResponse) ? visitsResponse : visitsResponse?.data || [];
-        setVisits(visitsList);
- 
-        const customersList = Array.isArray(customersResponse) ? customersResponse : customersResponse?.data || [];
-        setCustomers(customersList);
- 
-        const allPropsTemp = [];
-        for (const customer of customersList) {
-          const response = await getPropertiesByCustomer(customer.id);
-          const list = Array.isArray(response)
-            ? response
-            : Array.isArray(response?.data)
-              ? response.data
-              : Array.isArray(response?.properties)
-                ? response.properties
-                : [];
-          allPropsTemp.push(...list);
-        }
-        setAllProperties(allPropsTemp);
-      } catch (error) {
-        console.error("Error loading route:", error);
-        setLoadError("Couldn't load your route. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, [session.user.id]);
- 
   // Jobs scheduled for the SELECTED day, not just today.
   const selectedDayJobs = useMemo(() => {
     return jobs
@@ -148,25 +109,14 @@ const TechRoute = () => {
  
   const completedCount = stops.filter((s) => s.visit?.status === 'COMPLETED').length;
 
-  const updateLocalVisit = (updatedVisit) => {
-    setVisits((prev) => {
-      const exists = prev.some((visit) => visit.id === updatedVisit.id);
-      return exists
-        ? prev.map((visit) => visit.id === updatedVisit.id ? updatedVisit : visit)
-        : [...prev, updatedVisit];
-    });
-  };
-
   const ensureVisit = async (stop) => {
     if (stop.visit) return stop.visit;
-    const created = await createVisit({
+    return createVisitMutation.mutateAsync({
       jobId: stop.job.id,
       scheduledDate: selectedDate,
       status: 'SCHEDULED',
       notes: stop.job.notes || undefined,
     });
-    updateLocalVisit(created);
-    return created;
   };
 
   const handleCheckIn = async (stop) => {
@@ -175,8 +125,7 @@ const TechRoute = () => {
     setActionError(null);
     try {
       const visit = await ensureVisit(stop);
-      const updated = await checkInVisit(visit.id);
-      updateLocalVisit(updated);
+      await checkInMutation.mutateAsync(visit.id);
     } catch (error) {
       console.error("Error checking in visit:", error);
       setActionError("Couldn't check in to that visit. Please try again.");
@@ -196,11 +145,10 @@ const TechRoute = () => {
       const readings = Object.fromEntries(
         Object.entries(readingDrafts[stop.job.id] || {}).filter(([, value]) => value !== '')
       );
-      const updated = await completeVisit(visit.id, {
+      await completeVisitMutation.mutateAsync({ id: visit.id, data: {
         notes: noteText || visit.notes || stop.job.notes || undefined,
         readings,
-      });
-      updateLocalVisit(updated);
+      } });
 
       setNoteDrafts((prev) => ({ ...prev, [stop.job.id]: '' }));
       setReadingDrafts((prev) => ({ ...prev, [stop.job.id]: {} }));
@@ -223,8 +171,7 @@ const TechRoute = () => {
     setActionError(null);
     try {
       const visit = await ensureVisit(stop);
-      const updated = await skipVisit(visit.id, reason);
-      updateLocalVisit(updated);
+      await skipVisitMutation.mutateAsync({ id: visit.id, reason });
       setSkipDrafts((prev) => ({ ...prev, [stop.job.id]: '' }));
     } catch (error) {
       console.error("Error skipping visit:", error);

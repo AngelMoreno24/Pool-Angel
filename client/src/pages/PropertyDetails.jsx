@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { getPropertyById, updateProperty, deleteProperty } from '../services/propertyService';
-import { getVisitsByProperty } from '../services/visitService';
+import { useDeleteProperty, useProperty, usePropertyVisits, useUpdateProperty } from '../hooks/useAppQueries';
 import { propertySchema } from '../schemas/propertySchema';
 import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
@@ -12,8 +11,13 @@ const PropertyDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
  
-  const [property, setProperty] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const propertyQuery = useProperty(id);
+  const property = propertyQuery.data;
+  const visitsQuery = usePropertyVisits(id);
+  const updatePropertyMutation = useUpdateProperty();
+  const deletePropertyMutation = useDeleteProperty();
+  const visits = visitsQuery.data || [];
+  const loading = propertyQuery.isLoading;
   const [error, setError] = useState(null);
  
   const [isEditing, setIsEditing] = useState(false);
@@ -27,46 +31,16 @@ const PropertyDetails = () => {
  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [visits, setVisits] = useState([]);
-  const [visitsLoading, setVisitsLoading] = useState(true);
-  const [visitsError, setVisitsError] = useState(null);
+  const visitsLoading = visitsQuery.isLoading;
+  const visitsError = visitsQuery.isError ? "Couldn't load visit history." : null;
  
   useEffect(() => {
-    const fetchProperty = async () => {
-      try {
-        setLoading(true);
-        const response = await getPropertyById(id);
-        setProperty(response);
-        setAddress(response.address || "");
-        setCity(response.city || "");
-        setState(response.state || "");
-        setZipCode(response.zipCode || "");
-      } catch (err) {
-        console.error("Error fetching property:", err);
-        setError("Couldn't load this property.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProperty();
-  }, [id]);
-
-  useEffect(() => {
-    const fetchVisitHistory = async () => {
-      try {
-        setVisitsLoading(true);
-        setVisitsError(null);
-        const response = await getVisitsByProperty(id);
-        setVisits(Array.isArray(response) ? response : response?.data || []);
-      } catch (err) {
-        console.error("Error fetching property visit history:", err);
-        setVisitsError("Couldn't load visit history.");
-      } finally {
-        setVisitsLoading(false);
-      }
-    };
-    fetchVisitHistory();
-  }, [id]);
+    if (!property) return;
+    setAddress(property.address || "");
+    setCity(property.city || "");
+    setState(property.state || "");
+    setZipCode(property.zipCode || "");
+  }, [property]);
  
   const startEditing = () => {
     setError(null);
@@ -103,7 +77,7 @@ const PropertyDetails = () => {
       setSaving(true);
       setError(null);
       setErrors({});
-      const response = await updateProperty(id, { address, city, state, zipCode });
+      const response = await updatePropertyMutation.mutateAsync({ id, data: { address, city, state, zipCode } });
       // Handle APIs that wrap the updated record, e.g. { data: {...} } or { property: {...} }
       const updated = response?.address
         ? response
@@ -112,7 +86,6 @@ const PropertyDetails = () => {
           : response?.property?.address
             ? response.property
             : null;
-      setProperty(updated || { ...property, address, city, state, zipCode });
       setIsEditing(false);
     } catch (err) {
       console.error("Error updating property:", err);
@@ -126,7 +99,7 @@ const PropertyDetails = () => {
     try {
       setDeleting(true);
       setError(null);
-      await deleteProperty(id);
+      await deletePropertyMutation.mutateAsync(id);
       navigate(property?.customerId ? `/customers/${property.customerId}` : "/customers");
     } catch (err) {
       console.error("Error deleting property:", err);

@@ -1,10 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { getjob, createjob } from '../services/jobService';
-import { getCustomers } from '../services/customerService';
-import { getPropertiesByCustomer } from '../services/propertyService';
-import { getTechs } from '../services/techService';
+import { useAllCustomerProperties, useCreateJob, useCustomerProperties, useCustomers, useJobs, useTechsQuery } from '../hooks/useAppQueries';
 import FormField from '../components/FormField';
 import Spinner from '../components/Spinner';
  
@@ -48,23 +45,29 @@ const STATUS_FILTERS = [
  
 const Job = () => {
   const { session, signOut } = UserAuth();
-  const [jobs, setJobs] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
-  const [techs, setTechs] = useState([]);
+  const [customerId, setCustomerId] = useState("");
+  const jobsQuery = useJobs();
+  const customersQuery = useCustomers();
+  const techsQuery = useTechsQuery();
+  const customers = customersQuery.data || [];
+  const jobs = jobsQuery.data || [];
+  const techs = techsQuery.data || [];
+  const allPropertiesQuery = useAllCustomerProperties(customers);
+  const propertiesQuery = useCustomerProperties(customerId);
+  const properties = propertiesQuery.data || [];
+  const allProperties = allPropertiesQuery.data || [];
+  const createJobMutation = useCreateJob();
   
   const [title, setTitle] = useState("");
   const [jobType, setJobType] = useState("RECURRING_CLEANING");
   const [frequency, setFrequency] = useState("WEEKLY");
-  const [customerId, setCustomerId] = useState("");
   const [propertyId, setPropertyId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [status, setStatus] = useState("ACTIVE");
   const [defaultTechId, setDefaultTechId] = useState("");
   
   const [fieldErrors, setFieldErrors] = useState({});
-  const [loading, setLoading] = useState(true);
+  const loading = jobsQuery.isLoading || customersQuery.isLoading || techsQuery.isLoading || allPropertiesQuery.isLoading;
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -77,77 +80,6 @@ const Job = () => {
   const [searchTerm, setSearchTerm] = useState("");
  
   const navigate = useNavigate();
- 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [jobsResponse, customersResponse, techsResponse] = await Promise.all([
-          getjob(),
-          getCustomers(),
-          getTechs()
-        ]);
-        setJobs(Array.isArray(jobsResponse) ? jobsResponse : jobsResponse?.data || []);
-        const customersList = Array.isArray(customersResponse) ? customersResponse : customersResponse?.data || [];
-        setCustomers(customersList);
-        const techsList = Array.isArray(techsResponse)
-          ? techsResponse
-          : Array.isArray(techsResponse?.data)
-            ? techsResponse.data
-            : Array.isArray(techsResponse?.techs)
-              ? techsResponse.techs
-              : [];
-        setTechs(techsList);
-        
-        // Fetch all properties for all customers
-        try {
-          const allPropsTemp = [];
-          for (const customer of customersList) {
-            const response = await getPropertiesByCustomer(customer.id);
-            const list = Array.isArray(response)
-              ? response
-              : Array.isArray(response?.data)
-                ? response.data
-                : Array.isArray(response?.properties)
-                  ? response.properties
-                  : [];
-            allPropsTemp.push(...list);
-          }
-          setAllProperties(allPropsTemp);
-        } catch (error) {
-          console.error("Error fetching all properties:", error);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    const fetchProperties = async () => {
-      if (!customerId) {
-        setProperties([]);
-        return;
-      }
-      try {
-        const response = await getPropertiesByCustomer(customerId);
-        const list = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response?.properties)
-              ? response.properties
-              : [];
-        setProperties(list);
-      } catch (error) {
-        console.error("Error fetching properties:", error);
-      }
-    }
-    fetchProperties();
-  }, [customerId]);
  
   const clearFieldError = (field) => {
     if (fieldErrors[field]) {
@@ -187,8 +119,7 @@ const Job = () => {
         status,
         ...(defaultTechId ? { defaultTechId } : {}),
       };
-      const createdJob = await createjob(jobData);
-      setJobs([...jobs, createdJob]);
+      await createJobMutation.mutateAsync(jobData);
       setTitle("");
       setJobType("RECURRING_CLEANING");
       setFrequency("WEEKLY");

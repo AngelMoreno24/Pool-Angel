@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TechRoute from './TechRoute';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const serviceMocks = vi.hoisted(() => ({
   getjobByTech: vi.fn(),
@@ -11,6 +12,7 @@ const serviceMocks = vi.hoisted(() => ({
   completeVisit: vi.fn(),
   getPropertiesByCustomer: vi.fn(),
   getCustomers: vi.fn(),
+  skipVisit: vi.fn(),
 }));
 
 vi.mock('../context/AuthContext', () => ({
@@ -23,6 +25,7 @@ vi.mock('../services/visitService', () => ({
   createVisit: serviceMocks.createVisit,
   checkInVisit: serviceMocks.checkInVisit,
   completeVisit: serviceMocks.completeVisit,
+  skipVisit: serviceMocks.skipVisit,
 }));
 vi.mock('../services/propertyService', () => ({ getPropertiesByCustomer: serviceMocks.getPropertiesByCustomer }));
 vi.mock('../services/customerService', () => ({ getCustomers: serviceMocks.getCustomers }));
@@ -96,7 +99,12 @@ describe('Technician visit workflow', () => {
   });
 
   it('creates and checks in a missing visit, then completes it with readings', async () => {
-    render(<TechRoute />);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <TechRoute />
+      </QueryClientProvider>
+    );
 
     expect(await screen.findByText('Weekly cleaning')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Check in' }));

@@ -4,11 +4,7 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getjob, getjobByTech, createjob, updatejob } from '../services/jobService';
-import { getCustomers } from '../services/customerService';
-import { getPropertiesByCustomer } from '../services/propertyService';
-import { getTechs } from '../services/techService';
-import { getVisits, rescheduleVisit } from '../services/visitService';
+import { useAllCustomerProperties, useCreateJob, useCustomerProperties, useCustomers, useJobs, useRescheduleVisit, useTechsQuery, useUpdateJob, useVisits } from '../hooks/useAppQueries';
 import FormField from '../components/FormField';
 import Spinner from '../components/Spinner';
 import JobEditModal from '../components/JobEditModal';
@@ -53,17 +49,26 @@ const Route = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const [jobs, setJobs] = useState([]);
-  const [visits, setVisits] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [properties, setProperties] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
-  const [techs, setTechs] = useState([]);
+  const [customerId, setCustomerId] = useState("");
+  const jobsQuery = useJobs({ technicianId: role === 'OWNER' ? undefined : session?.user?.id });
+  const visitsQuery = useVisits();
+  const customersQuery = useCustomers();
+  const techsQuery = useTechsQuery();
+  const jobs = jobsQuery.data || [];
+  const visits = visitsQuery.data || [];
+  const customers = customersQuery.data || [];
+  const techs = techsQuery.data || [];
+  const allPropertiesQuery = useAllCustomerProperties(customers);
+  const allProperties = allPropertiesQuery.data || [];
+  const propertiesQuery = useCustomerProperties(customerId);
+  const properties = propertiesQuery.data || [];
+  const createJobMutation = useCreateJob();
+  const updateJobMutation = useUpdateJob();
+  const rescheduleVisitMutation = useRescheduleVisit();
  
   const [title, setTitle] = useState("");
   const [jobType, setJobType] = useState("RECURRING_CLEANING");
   const [frequency, setFrequency] = useState("WEEKLY");
-  const [customerId, setCustomerId] = useState("");
   const [propertyId, setPropertyId] = useState("");
   const [startDate, setStartDate] = useState("");
   const [status, setStatus] = useState("ACTIVE");
@@ -72,7 +77,7 @@ const Route = () => {
   const [routeFilter, setRouteFilter] = useState('ALL');
  
   const [fieldErrors, setFieldErrors] = useState({});
-  const [loading, setLoading] = useState(true);
+  const loading = jobsQuery.isLoading || visitsQuery.isLoading || customersQuery.isLoading || techsQuery.isLoading || allPropertiesQuery.isLoading;
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -104,84 +109,6 @@ const Route = () => {
   const [reschedulingId, setReschedulingId] = useState(null);
  
   const navigate = useNavigate();
- 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [jobsResponse, customersResponse, techsResponse, visitsResponse] = await Promise.all([
-          role === 'OWNER' ? getjob() : getjobByTech(session?.user?.id),
-          getCustomers(),
-          getTechs(),
-          getVisits()
-        ]);
-
-        const jobsList = Array.isArray(jobsResponse) ? jobsResponse : jobsResponse?.data || [];
-        setJobs(jobsList);
-
-        const visitsList = Array.isArray(visitsResponse) ? visitsResponse : visitsResponse?.data || [];
-        setVisits(visitsList);
- 
-        const customersList = Array.isArray(customersResponse) ? customersResponse : customersResponse?.data || [];
-        setCustomers(customersList);
-        const techsList = Array.isArray(techsResponse)
-          ? techsResponse
-          : Array.isArray(techsResponse?.data)
-            ? techsResponse.data
-            : Array.isArray(techsResponse?.techs)
-              ? techsResponse.techs
-              : [];
-        setTechs(techsList);
- 
-        // Fetch all properties for all customers
-        try {
-          const allPropsTemp = [];
-          for (const customer of customersList) {
-            const response = await getPropertiesByCustomer(customer.id);
-            const list = Array.isArray(response)
-              ? response
-              : Array.isArray(response?.data)
-                ? response.data
-                : Array.isArray(response?.properties)
-                  ? response.properties
-                  : [];
-            allPropsTemp.push(...list);
-          }
-          setAllProperties(allPropsTemp);
-        } catch (error) {
-          console.error("Error fetching all properties:", error);
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchData();
-  }, [role, session?.user?.id]);
- 
-  useEffect(() => {
-    const fetchProperties = async () => {
-      if (!customerId) {
-        setProperties([]);
-        return;
-      }
-      try {
-        const response = await getPropertiesByCustomer(customerId);
-        const list = Array.isArray(response)
-          ? response
-          : Array.isArray(response?.data)
-            ? response.data
-            : Array.isArray(response?.properties)
-              ? response.properties
-              : [];
-        setProperties(list);
-      } catch (error) {
-        console.error("Error fetching properties:", error);
-      }
-    }
-    fetchProperties();
-  }, [customerId]);
  
   const ownerProfile = useMemo(
     () => techs.find((tech) => tech.role === 'OWNER'),
@@ -269,8 +196,7 @@ const Route = () => {
         dayOfWeek,
         ...(defaultTechId ? { defaultTechId } : {}),
       };
-      const createdJob = await createjob(jobData);
-      setJobs([...jobs, createdJob]);
+      await createJobMutation.mutateAsync(jobData);
       setTitle("");
       setJobType("RECURRING_CLEANING");
       setFrequency("WEEKLY");
@@ -307,14 +233,8 @@ const Route = () => {
       // Only touches routeOrder on jobs belonging to the selected day -
       // every other day's saved order is completely untouched.
       await Promise.all(
-        dayOrder.map((job, index) => updatejob(job.id, { routeOrder: index }))
+        dayOrder.map((job, index) => updateJobMutation.mutateAsync({ id: job.id, data: { routeOrder: index } }))
       );
-      const updatedIds = new Set(dayOrder.map((j) => j.id));
-      setJobs(jobs.map((job) =>
-        updatedIds.has(job.id)
-          ? { ...job, routeOrder: dayOrder.findIndex((j) => j.id === job.id) }
-          : job
-      ));
       setOrderSaved(true);
       setTimeout(() => setOrderSaved(false), 2000);
     } catch (error) {
@@ -550,8 +470,7 @@ const Route = () => {
     setReschedulingId(visit.id);
     setOrderError(null);
     try {
-      const updated = await rescheduleVisit(visit.id, { scheduledDate });
-      setVisits((current) => current.map((item) => item.id === updated.id ? updated : item));
+      await rescheduleVisitMutation.mutateAsync({ id: visit.id, data: { scheduledDate } });
       setRescheduleDates((current) => ({ ...current, [jobId]: '' }));
     } catch (error) {
       console.error("Error rescheduling visit:", error);
@@ -953,7 +872,6 @@ const Route = () => {
             techs={techs}
             onClose={() => setEditingJob(null)}
             onSaved={(updatedJob) => {
-              setJobs(jobs.map((j) => (j.id === updatedJob.id ? updatedJob : j)));
               setEditingJob(null);
             }}
           />

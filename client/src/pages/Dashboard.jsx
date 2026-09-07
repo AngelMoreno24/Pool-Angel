@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { UserAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { getCustomers } from '../services/customerService';
-import { getjob } from '../services/jobService';
+import { useCustomers, useJobs } from '../hooks/useAppQueries';
  
 const RECENT_COUNT = 5;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -58,10 +57,12 @@ const jobOccursOnDate = (job, date) => {
 const Dashboard = () => {
  
   const { session, role, signOut } = UserAuth();
-  const [customers, setCustomers] = useState([]);
-  const [customersLoading, setCustomersLoading] = useState(true);
-  const [jobs, setJobs] = useState([]);
-  const [jobsLoading, setJobsLoading] = useState(true);
+  const customersQuery = useCustomers(role !== 'TECH');
+  const jobsQuery = useJobs();
+  const customers = role === 'TECH' ? [] : (customersQuery.data || []);
+  const jobs = (jobsQuery.data || []).filter((job) => job?.status !== 'CANCELLED');
+  const customersLoading = customersQuery.isLoading;
+  const jobsLoading = jobsQuery.isLoading;
   // Which calendar day is selected - defaults to today, changes when a
   // week cell is clicked.
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -79,37 +80,6 @@ const Dashboard = () => {
       console.error("Error signing out:", err);
     }
   }
- 
-  // Normalize a response that might be a plain array or wrapped, e.g. { data: [...] }
-  const toArray = (response) => {
-    if (Array.isArray(response)) return response;
-    if (Array.isArray(response?.data)) return response.data;
-    return [];
-  };
- 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setCustomersLoading(true);
-        setJobsLoading(true);
- 
-        const [customersResponse, jobsResponse] = await Promise.all([
-          role === 'TECH' ? Promise.resolve([]) : getCustomers(),
-          getjob(),
-        ]);
- 
-        setCustomers(toArray(customersResponse));
-        setJobs(toArray(jobsResponse).filter((job) => job?.status !== 'CANCELLED'));
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
-      } finally {
-        setCustomersLoading(false);
-        setJobsLoading(false);
-      }
-    };
- 
-    fetchDashboardData();
-  }, [role, session]);
  
   const byMostRecent = (a, b) =>
     new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
