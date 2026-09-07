@@ -188,13 +188,13 @@ Fields:
 Dashboard Metrics:
 
 * [x] Total Customers
-* [ ] Total Properties
-* [ ] Total Pools
+* [x] Total Properties
+* [x] Total Pools
 
 Dashboard Widgets:
 
 * [x] Recent Customers
-* [ ] Recent Pools
+* [x] Recent Pools
 
 ---
 
@@ -202,9 +202,9 @@ Dashboard Widgets:
 
 ### Backend
 
-* [ ] Zod Validation
-* [ ] Global Error Handler
-* [ ] API Error Responses
+* [x] Zod Validation
+* [x] Global Error Handler
+* [x] API Error Responses
 
 Install:
 
@@ -214,9 +214,9 @@ npm install zod
 
 ### Frontend
 
-* [ ] Loading States
-* [ ] Error States
-* [ ] Success Messages
+* [x] Loading States
+* [x] Error States
+* [x] Success Messages
 
 ---
 
@@ -232,10 +232,10 @@ npm install -D jest supertest
 
 Test Coverage:
 
-* [ ] Authentication
-* [ ] Customers
-* [ ] Properties
-* [ ] Pools
+* [x] Authentication
+* [x] Customers
+* [x] Properties
+* [x] Pools
 
 ---
 
@@ -298,14 +298,14 @@ server/
 
 The first release is considered complete when the following features are finished:
 
-* [ ] Authentication
-* [ ] Customer CRUD
-* [ ] Property CRUD
-* [ ] Pool CRUD
-* [ ] Dashboard
-* [ ] PostgreSQL Database
-* [ ] Prisma Integration
-* [ ] Production Deployment
+* [x] Authentication
+* [x] Customer CRUD
+* [x] Property CRUD
+* [x] Pool CRUD
+* [x] Dashboard
+* [x] PostgreSQL Database
+* [x] Prisma Integration
+* [x] Production Deployment
 
 ---
 
