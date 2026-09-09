@@ -1,6 +1,6 @@
 # Pool Service App V2
 
-A modern full-stack pool service management application built with React, TypeScript, Node.js, Express, Prisma, and PostgreSQL.
+A modern full-stack pool service management application built with React, JavaScript, Node.js, Express, Prisma, and PostgreSQL.
 
 ---
 
@@ -9,7 +9,7 @@ A modern full-stack pool service management application built with React, TypeSc
 ### Frontend
 
 * React
-* TypeScript
+* JavaScript
 * Vite
 * React Router
 * Axios
@@ -19,7 +19,7 @@ A modern full-stack pool service management application built with React, TypeSc
 
 * Node.js
 * Express
-* TypeScript
+* JavaScript
 * Prisma ORM
 
 ### Database
@@ -57,14 +57,14 @@ The initial MVP focuses on customer and pool management before expanding into sc
 
 * [x] Node.js
 * [x] Express
-* [x] TypeScript
+* [x] JavaScript
 * [x] Environment variables
 * [x] CORS configuration
 
 ### Frontend Setup
 
 * [x] React
-* [x] TypeScript
+* [x] JavaScript
 * [x] Vite
 * [x] React Router
 
