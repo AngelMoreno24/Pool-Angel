@@ -42,6 +42,10 @@ model User {
   // "what's on my schedule", not at Job directly
   assignedVisits Visit[] @relation("AssignedTechForVisit")
 
+
+   notesAuthored   Note[]  @relation("NoteAuthor")
+
+
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
@@ -62,6 +66,9 @@ model Company {
   jobs Job[]
   visits Visit[]
 
+  notes             Note[]
+
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -79,6 +86,8 @@ model Customer {
 
   properties Property[]
   jobs       Job[]
+
+  notes   Note[]
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -103,6 +112,9 @@ model Property {
 
   pool        Pool?
   jobs        Job[]
+  
+  notes   Note[]      // gate codes, dog warnings, access instructions
+
 
   latitude    Float?
   longitude   Float?
@@ -230,7 +242,8 @@ model Visit {
   checkInAt   DateTime?
   checkOutAt  DateTime?
 
-  notes       String?
+  notes             Note[]
+
   // Chemical readings, checklist results, photos - start simple as JSON,
   // split into their own model later once you know what fields you
   // actually need to query/report on individually.
@@ -256,4 +269,48 @@ enum VisitStatus {
   COMPLETED
   SKIPPED
   CANCELLED
+}
+
+
+
+
+// ── Note ─────────────────────────────────────────────────────────────
+// A timestamped, attributed note. Attach it to exactly ONE of
+// customer / property / visit (enforce that in the controller - Prisma
+// can't express "exactly one of" natively).
+//
+// Why a model instead of the existing Visit.notes string: a single text
+// field gets overwritten, and can't say who wrote what or when. Keep
+// Visit.notes as a short summary if you like; Note is the history.
+model Note {
+  id         String   @id @default(uuid())
+
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // SetNull so deleting a tech doesn't delete their notes - UI shows
+  // "Former team member" when authorId is null.
+  authorId   String?
+  author     User?    @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  propertyId String?
+  property   Property? @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  visitId    String?
+  visit      Visit?    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  body       String
+  ownerOnly  Boolean  @default(false)   // hidden from techs (e.g. billing disputes)
+  pinned     Boolean  @default(false)   // surfaces at the top (e.g. "gate code 4821")
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([propertyId])
+  @@index([visitId])
 }
