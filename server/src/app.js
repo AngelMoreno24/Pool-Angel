@@ -9,6 +9,7 @@ import poolRoutes from "./routes/poolRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import visitRoutes from "./routes/visitRoutes.js";
+import noteRoutes from "./routes/noteRoutes.js";
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use("/pools", poolRoutes);
 app.use("/techs", authRoutes);
 app.use("/jobs", jobRoutes);
 app.use("/visits", visitRoutes);
+app.use("/notes", noteRoutes);
 
 app.use(errorHandler);
 
