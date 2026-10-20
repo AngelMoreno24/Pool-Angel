@@ -6,6 +6,7 @@ import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import PoolSection from '../components/PoolSection';
 import Spinner from '../components/Spinner';
+import NotesSection from '../components/NotesSection';
  
 const PropertyDetails = () => {
   const { id } = useParams();
@@ -296,6 +297,8 @@ const PropertyDetails = () => {
         </section>
  
         <PoolSection propertyId={id} />
+
+        <NotesSection attachmentField="propertyId" attachmentId={id} title="Property notes" />
 
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-4">

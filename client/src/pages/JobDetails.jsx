@@ -5,6 +5,7 @@ import { UserAuth } from '../context/AuthContext';
 import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import Spinner from '../components/Spinner';
+import NotesSection from '../components/NotesSection';
 
 const JobDetails = () => {
   const { id } = useParams();
@@ -457,6 +458,9 @@ const JobDetails = () => {
                       </p>
                     )}
                     {visit.notes && <p className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">{visit.notes}</p>}
+                    <div className="mt-4">
+                      <NotesSection attachmentField="visitId" attachmentId={visit.id} title="Visit notes" />
+                    </div>
                   </li>
                 );
               })}

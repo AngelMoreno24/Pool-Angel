@@ -3,6 +3,7 @@ import { getCustomers } from '../services/customerService';
 import { createjob, deletejob, getjob, getjobById, getjobByTech, updatejob } from '../services/jobService';
 import { getPropertiesByCustomer, getPropertyById, updateProperty, deleteProperty } from '../services/propertyService';
 import { getTechs } from '../services/techService';
+import { createNote, deleteNote, getNotes, updateNote } from '../services/noteService';
 import {
   checkInVisit,
   completeVisit,
@@ -74,6 +75,37 @@ export const usePropertyVisits = (propertyId) => useQuery({
   queryFn: async () => asList(await getVisitsByProperty(propertyId)),
   enabled: Boolean(propertyId),
 });
+
+//Note Related Queries and Mutations
+export const useNotes = (role) => useQuery({
+  queryKey: ['notes', role],
+  queryFn: async () => asList(await getNotes()),
+  enabled: Boolean(role),
+});
+
+export const useCreateNote = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: createNote,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notes'] }),
+  });
+};
+
+export const useUpdateNote = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }) => updateNote(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notes'] }),
+  });
+};
+
+export const useDeleteNote = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: deleteNote,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notes'] }),
+  });
+};
 
 const invalidateOperationalData = (queryClient) => {
   queryClient.invalidateQueries({ queryKey: ['jobs'] });

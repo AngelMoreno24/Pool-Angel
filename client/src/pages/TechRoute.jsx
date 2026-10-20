@@ -5,6 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useAllCustomerProperties, useCheckInVisit, useCompleteVisit, useCreateVisit, useCustomers, useJobs, useSkipVisit, useVisits } from '../hooks/useAppQueries';
 import Spinner from '../components/Spinner';
+import NotesSection from '../components/NotesSection';
  
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -434,6 +435,11 @@ const TechRoute = () => {
                           </button>
                         )}
                       </div>
+                      {stop.visit && (
+                        <div className="mt-4">
+                          <NotesSection attachmentField="visitId" attachmentId={stop.visit.id} title="Visit notes" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </li>

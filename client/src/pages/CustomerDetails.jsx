@@ -8,6 +8,7 @@ import { propertySchema } from '../schemas/propertySchema';
 import FormField from '../components/FormField';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import Spinner from '../components/Spinner';
+import NotesSection from '../components/NotesSection';
  
 const CustomerDetails = () => {
   const { id } = useParams();
@@ -451,6 +452,8 @@ const CustomerDetails = () => {
             )}
           </div>
         </section>
+
+        <NotesSection attachmentField="customerId" attachmentId={id} title="Customer notes" />
  
         {/* Properties section */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
