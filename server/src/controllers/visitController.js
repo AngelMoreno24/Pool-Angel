@@ -60,7 +60,11 @@ export const createVisit = async (req, res, next) => {
                 scheduledDateKey: toDateKey(scheduledDate),
                 scheduledTime,
                 status: nextStatus,
-                notes,
+                ...(notes?.trim() ? {
+                    notes: {
+                        create: { companyId, authorId: dbUserId, body: notes.trim() },
+                    },
+                } : {}),
                 serviceData,
                 routeOrder,
             },
@@ -80,7 +84,7 @@ export const createVisit = async (req, res, next) => {
 export const getVisits = async (req, res, next) => {
  
     try {
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
  
         if (!companyId ) {
             return next(createError("Forbidden", 403));
@@ -88,7 +92,13 @@ export const getVisits = async (req, res, next) => {
  
         const visits = await prisma.visit.findMany({
             where: role === "TECH"
-                ? { companyId, assignedTechId: req.user.dbUserId }
+                ? {
+                    companyId,
+                    OR: [
+                        { assignedTechId: dbUserId },
+                        { assignedTechId: null, job: { is: { defaultTechId: dbUserId } } },
+                    ],
+                }
                 : { companyId },
             orderBy: { scheduledDate: "asc" },
         });
@@ -119,7 +129,12 @@ export const getPropertyVisits = async (req, res, next) => {
             where: {
                 companyId,
                 job: { propertyId },
-                ...(role === "TECH" ? { assignedTechId: dbUserId } : {}),
+                ...(role === "TECH" ? {
+                    OR: [
+                        { assignedTechId: dbUserId },
+                        { assignedTechId: null, job: { is: { defaultTechId: dbUserId } } },
+                    ],
+                } : {}),
             },
             include: {
                 job: { select: { id: true, title: true } },
@@ -151,13 +166,8 @@ export const getVisit = async (req, res, next) => {
             return next(createError("Missing required fields", 400));
         }
  
-        const visit = await prisma.visit.findUnique({
-            where: { id: visitId },
-        });
- 
-        if (!visit || visit.companyId !== companyId || (role === "TECH" && visit.assignedTechId !== req.user.dbUserId)) {
-            return next(createError("Visit not found", 404));
-        }
+        const visit = await getTechnicianVisit(visitId, companyId, role, req.user.dbUserId);
+        if (!visit) return next(createError("Visit not found", 404));
  
         return res.status(200).json(visit);
     } catch (error) {
@@ -227,7 +237,11 @@ export const updateVisit = async (req, res, next) => {
                 scheduledDateKey: toDateKey(nextScheduledDate),
                 scheduledTime,
                 status,
-                notes,
+                ...(notes?.trim() ? {
+                    notes: {
+                        create: { companyId, authorId: dbUserId, body: notes.trim() },
+                    },
+                } : {}),
                 serviceData,
                 routeOrder,
             },
@@ -281,8 +295,19 @@ export const deleteVisit = async (req, res, next) => {
 
 const getTechnicianVisit = async (visitId, companyId, role, dbUserId) => {
     const visit = await prisma.visit.findUnique({ where: { id: visitId } });
-    if (!visit || visit.companyId !== companyId || (role === "TECH" && visit.assignedTechId !== dbUserId)) {
+    if (!visit || visit.companyId !== companyId) {
         return null;
+    }
+
+    if (role === "TECH") {
+        if (visit.assignedTechId && visit.assignedTechId !== dbUserId) return null;
+        if (!visit.assignedTechId) {
+            const job = await prisma.job.findUnique({
+                where: { id: visit.jobId },
+                select: { defaultTechId: true },
+            });
+            if (job?.defaultTechId !== dbUserId) return null;
+        }
     }
     return visit;
 };
@@ -298,7 +323,11 @@ export const checkInVisit = async (req, res, next) => {
 
         const updated = await prisma.visit.update({
             where: { id: visit.id },
-            data: { status: "IN_PROGRESS", checkInAt: visit.checkInAt ?? new Date() },
+            data: {
+                status: "IN_PROGRESS",
+                checkInAt: visit.checkInAt ?? new Date(),
+                ...(role === "TECH" && !visit.assignedTechId ? { assignedTechId: dbUserId } : {}),
+            },
         });
         return res.status(200).json(updated);
     } catch (error) {
@@ -323,7 +352,12 @@ export const completeVisit = async (req, res, next) => {
                 status: "COMPLETED",
                 checkInAt: visit.checkInAt ?? new Date(),
                 checkOutAt: new Date(),
-                notes: notes || visit.notes,
+                ...(role === "TECH" && !visit.assignedTechId ? { assignedTechId: dbUserId } : {}),
+                ...(notes?.trim() ? {
+                    notes: {
+                        create: { companyId, authorId: dbUserId, body: notes.trim() },
+                    },
+                } : {}),
                 serviceData: { ...(visit.serviceData || {}), readings: readings || {}, completedAt: new Date().toISOString() },
             },
         });
@@ -345,7 +379,13 @@ export const skipVisit = async (req, res, next) => {
 
         const updated = await prisma.visit.update({
             where: { id: visit.id },
-            data: { status: "SKIPPED", notes: req.body.reason },
+            data: {
+                status: "SKIPPED",
+                notes: {
+                    create: { companyId, authorId: dbUserId, body: req.body.reason },
+                },
+                ...(role === "TECH" && !visit.assignedTechId ? { assignedTechId: dbUserId } : {}),
+            },
         });
         return res.status(200).json(updated);
     } catch (error) {

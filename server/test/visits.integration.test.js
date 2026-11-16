@@ -102,7 +102,13 @@ describe('company and technician authorization', () => {
 
     expect(response.status).toBe(200);
     expect(prismaMock.visit.findMany).toHaveBeenCalledWith({
-      where: { companyId: techA.companyId, assignedTechId: techA.id },
+      where: {
+        companyId: techA.companyId,
+        OR: [
+          { assignedTechId: techA.id },
+          { assignedTechId: null, job: { is: { defaultTechId: techA.id } } },
+        ],
+      },
       orderBy: { scheduledDate: 'asc' },
     });
   });
@@ -279,6 +285,47 @@ describe('company and technician authorization', () => {
 });
 
 describe('visit lifecycle', () => {
+  it('stores create-visit text as a related note record', async () => {
+    authenticateAs(techA);
+    prismaMock.job.findUnique.mockResolvedValue({
+      id: '43a4bb5b-0e3b-487e-99a2-42510b9b4081',
+      companyId: techA.companyId,
+      defaultTechId: techA.id,
+    });
+    prismaMock.visit.create.mockResolvedValue({
+      id: 'visit-a',
+      companyId: techA.companyId,
+      jobId: '43a4bb5b-0e3b-487e-99a2-42510b9b4081',
+      assignedTechId: techA.id,
+    });
+
+    const response = await request(app)
+      .post('/visits/create')
+      .set('Authorization', 'Bearer tech-token')
+      .send({
+        jobId: '43a4bb5b-0e3b-487e-99a2-42510b9b4081',
+        scheduledDate: '2026-11-16T00:00:00.000Z',
+        status: 'SCHEDULED',
+        notes: 'Vinyl liner - avoid abrasive brushes',
+      });
+
+    expect(response.status).toBe(201);
+    expect(prismaMock.visit.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        companyId: techA.companyId,
+        jobId: '43a4bb5b-0e3b-487e-99a2-42510b9b4081',
+        assignedTechId: techA.id,
+        notes: {
+          create: {
+            companyId: techA.companyId,
+            authorId: techA.id,
+            body: 'Vinyl liner - avoid abrasive brushes',
+          },
+        },
+      }),
+    });
+  });
+
   it('check-in records checkInAt and moves the visit in progress', async () => {
     const visit = {
       id: 'visit-a',
@@ -301,6 +348,40 @@ describe('visit lifecycle', () => {
     expect(prismaMock.visit.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: visit.id },
       data: expect.objectContaining({ status: 'IN_PROGRESS', checkInAt: expect.any(Date) }),
+    }));
+  });
+
+  it('lets the default technician check in to an unassigned legacy visit', async () => {
+    const visit = {
+      id: 'visit-a',
+      companyId: techA.companyId,
+      jobId: 'job-a',
+      assignedTechId: null,
+      status: 'SCHEDULED',
+      checkInAt: null,
+    };
+    authenticateAs(techA);
+    prismaMock.visit.findUnique.mockResolvedValue(visit);
+    prismaMock.job.findUnique.mockResolvedValue({ defaultTechId: techA.id });
+    prismaMock.visit.update.mockResolvedValue({
+      ...visit,
+      assignedTechId: techA.id,
+      status: 'IN_PROGRESS',
+      checkInAt: new Date(),
+    });
+
+    const response = await request(app)
+      .post('/visits/visit-a/check-in')
+      .set('Authorization', 'Bearer tech-token');
+
+    expect(response.status).toBe(200);
+    expect(prismaMock.visit.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: visit.id },
+      data: expect.objectContaining({
+        status: 'IN_PROGRESS',
+        assignedTechId: techA.id,
+        checkInAt: expect.any(Date),
+      }),
     }));
   });
 
@@ -328,6 +409,13 @@ describe('visit lifecycle', () => {
       data: expect.objectContaining({
         status: 'COMPLETED',
         checkOutAt: expect.any(Date),
+        notes: {
+          create: {
+            companyId: techA.companyId,
+            authorId: techA.id,
+            body: 'Balanced water',
+          },
+        },
         serviceData: expect.objectContaining({ readings: { ph: 7.4, chlorine: 2.5 } }),
       }),
     }));

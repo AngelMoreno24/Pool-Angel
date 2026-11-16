@@ -117,7 +117,6 @@ const TechRoute = () => {
       jobId: stop.job.id,
       scheduledDate: selectedDate,
       status: 'SCHEDULED',
-      notes: stop.job.notes || undefined,
     });
   };
 
@@ -148,7 +147,7 @@ const TechRoute = () => {
         Object.entries(readingDrafts[stop.job.id] || {}).filter(([, value]) => value !== '')
       );
       await completeVisitMutation.mutateAsync({ id: visit.id, data: {
-        notes: noteText || visit.notes || stop.job.notes || undefined,
+        notes: noteText || stop.job.notes || undefined,
         readings,
       } });
 
@@ -339,11 +338,11 @@ const TechRoute = () => {
                         )}
                       </div>
 
-                      {(stop.job.notes || stop.visit?.notes) && (
+                      {stop.job.notes && (
                         <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Notes</p>
                           <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">
-                            {stop.visit?.notes || stop.job.notes}
+                            {stop.job.notes}
                           </p>
                         </div>
                       )}

@@ -343,7 +343,9 @@ const PropertyDetails = () => {
                         Readings: {Object.entries(readings).map(([field, value]) => `${field === 'ph' ? 'pH' : field}: ${value}`).join(' • ')}
                       </p>
                     )}
-                    {visit.notes && <p className="mt-2 text-sm text-slate-600 whitespace-pre-wrap">{visit.notes}</p>}
+                    <div className="mt-4">
+                      <NotesSection attachmentField="visitId" attachmentId={visit.id} title="Visit notes" />
+                    </div>
                   </li>
                 );
               })}
