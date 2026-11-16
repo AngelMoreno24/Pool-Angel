@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { UserAuth } from '../context/AuthContext';
 import { useDeleteProperty, useProperty, usePropertyVisits, useUpdateProperty } from '../hooks/useAppQueries';
 import { propertySchema } from '../schemas/propertySchema';
 import FormField from '../components/FormField';
@@ -11,6 +12,8 @@ import NotesSection from '../components/NotesSection';
 const PropertyDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { role } = UserAuth();
+  const isOwner = role === 'OWNER';
  
   const propertyQuery = useProperty(id);
   const property = propertyQuery.data;
@@ -198,7 +201,7 @@ const PropertyDetails = () => {
               </div>
             </div>
  
-            {!isEditing && (
+            {isOwner && !isEditing && (
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={startEditing}
@@ -296,7 +299,7 @@ const PropertyDetails = () => {
           </div>
         </section>
  
-        <PoolSection propertyId={id} />
+        <PoolSection propertyId={id} readOnly={!isOwner} />
 
         <NotesSection attachmentField="propertyId" attachmentId={id} title="Property notes" />
 
@@ -349,7 +352,7 @@ const PropertyDetails = () => {
         </section>
       </div>
  
-      {showDeleteConfirm && (
+      {isOwner && showDeleteConfirm && (
         <ConfirmDeleteModal
           title={`Delete ${property.address || "this property"}?`}
           message="This can't be undone. This property's record will be permanently removed."

@@ -5,7 +5,7 @@ import FormField from './FormField';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import Spinner from './Spinner';
  
-const PoolSection = ({ propertyId }) => {
+const PoolSection = ({ propertyId, readOnly = false }) => {
   const [pool, setPool] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -131,7 +131,7 @@ const PoolSection = ({ propertyId }) => {
         <div className="px-6 py-5 border-b border-slate-200 flex items-center justify-between gap-4">
           <h2 className="text-base font-semibold text-slate-900">Pool</h2>
  
-          {!loading && !pool && mode === "view" && (
+          {!readOnly && !loading && !pool && mode === "view" && (
             <button
               onClick={startAdding}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
@@ -143,7 +143,7 @@ const PoolSection = ({ propertyId }) => {
             </button>
           )}
  
-          {pool && mode === "view" && (
+          {!readOnly && pool && mode === "view" && (
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={startEditing}

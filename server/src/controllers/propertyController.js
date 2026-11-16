@@ -1,6 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { createError } from "../middleware/errorHandler.js";
 import { geocodeAddress } from "../lib/geocode.js";
+import { assignedWorkWhere } from "../utils/assignedWork.js";
  
  
 export const createProperty = async (req, res, next) => {
@@ -63,7 +64,7 @@ export const getProperties = async (req, res, next) => {
  
     try {
         const { customerId } = req.params;
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
  
         if (!companyId ) {
             return next(createError("Forbidden", 403));
@@ -77,6 +78,7 @@ export const getProperties = async (req, res, next) => {
             where: {
                 companyId,
                 customerId,
+                ...(role === "TECH" ? { jobs: { some: assignedWorkWhere(dbUserId) } } : {}),
             },
         });
  
@@ -92,7 +94,7 @@ export const getProperty = async (req, res, next) => {
  
     try {
         const { propertyId } = req.params;
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
  
         if (!companyId ) {
             return next(createError("Forbidden", 403));
@@ -106,6 +108,7 @@ export const getProperty = async (req, res, next) => {
             where: {
                 id: propertyId,
                 companyId,
+                ...(role === "TECH" ? { jobs: { some: assignedWorkWhere(dbUserId) } } : {}),
             },
         });
  

@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { createError } from "../middleware/errorHandler.js";
+import { assignedWorkWhere } from "../utils/assignedWork.js";
 
 export const createPool = async (req, res, next) => {
 
@@ -58,9 +59,9 @@ export const getPool = async (req, res, next) => {
 
     try {
         const { propertyId } = req.params;
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
 
-        if (!companyId || role !== "OWNER") {
+        if (!companyId || !["OWNER", "TECH"].includes(role)) {
             return next(createError("Forbidden", 403));
         }
 
@@ -72,6 +73,9 @@ export const getPool = async (req, res, next) => {
             where: {
                 propertyId,
                 companyId,
+                ...(role === "TECH" ? {
+                    property: { is: { jobs: { some: assignedWorkWhere(dbUserId) } } },
+                } : {}),
             },
             include: {
                 property: true,

@@ -14,6 +14,7 @@ const NAV_LINKS = {
   ],
   TECH: [
     { to: "/dashboard", label: "Dashboard" },
+    { to: "/customers", label: "Customers" },
     { to: "/my-route", label: "MyRoute" },
   ],
 };

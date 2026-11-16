@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { createError } from "../middleware/errorHandler.js";
+import { assignedWorkWhere } from "../utils/assignedWork.js";
  
 export const createJob = async (req, res, next) => {
  
@@ -66,7 +67,7 @@ export const createJob = async (req, res, next) => {
 export const getJobs = async (req, res, next) => {
  
     try {
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
         
         if (!companyId) {
             return next(createError("Forbidden", 403));
@@ -81,7 +82,7 @@ export const getJobs = async (req, res, next) => {
         }else if( role == "TECH") {
             //console.log("adfjbfuohhofdu")
             const jobs = await prisma.job.findMany({
-                where: { companyId, defaultTechId: req.user.dbUserId },
+                where: { companyId, ...assignedWorkWhere(dbUserId) },
             });
 
             //console.log(`Fetched ${jobs.length} jobs for tech ${req.user.dbUserId} with companyId ${companyId}`);
@@ -112,11 +113,15 @@ export const getJob = async (req, res, next) => {
             return next(createError("Missing required fields", 400));
         }
  
-        const job = await prisma.job.findUnique({
-            where: { id: jobId },
+        const job = await prisma.job.findFirst({
+            where: {
+                id: jobId,
+                companyId,
+                ...(role === "TECH" ? assignedWorkWhere(req.user.dbUserId) : {}),
+            },
         });
  
-        if (!job || job.companyId !== companyId || (role === "TECH" && job.defaultTechId !== req.user.dbUserId)) {
+        if (!job) {
             return next(createError("Job not found", 404));
         }
  
@@ -177,7 +182,7 @@ export const getJobByTech = async (req, res, next) => {
         const jobs = await prisma.job.findMany({
             where: {
                 companyId,
-                defaultTechId: tech.id,
+                ...assignedWorkWhere(tech.id),
             },
         });
         return res.status(200).json(jobs);

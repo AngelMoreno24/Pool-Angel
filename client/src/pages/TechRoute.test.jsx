@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TechRoute from './TechRoute';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -102,7 +103,9 @@ describe('Technician visit workflow', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={queryClient}>
-        <TechRoute />
+        <MemoryRouter>
+          <TechRoute />
+        </MemoryRouter>
       </QueryClientProvider>
     );
 

@@ -8,7 +8,8 @@ import Spinner from '../components/Spinner';
  
 const Customer = () => {
  
-    const { session, signOut } = UserAuth();
+    const { role } = UserAuth();
+    const isOwner = role === "OWNER";
     const [customers, setCustomers] = useState([]);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
@@ -104,9 +105,10 @@ const Customer = () => {
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">Customers</h1>
             <p className="mt-1 text-sm text-slate-500">
-              View existing customers or add a new one.
+              {isOwner ? "View existing customers or add a new one." : "Customers connected to your assigned work."}
             </p>
           </div>
+          {isOwner && (
           <button
             type="button"
             onClick={() => setShowAddForm((value) => !value)}
@@ -117,9 +119,10 @@ const Customer = () => {
             </svg>
             Add customer
           </button>
+          )}
         </header>
 
-        {showAddForm && (
+        {isOwner && showAddForm && (
           <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-6">
             <h2 className="text-base font-medium text-slate-900 mb-4">Add a customer</h2>
 
@@ -167,8 +170,8 @@ const Customer = () => {
             </ul>
           ) : customers.length === 0 ? (
             <div className="px-5 py-10 text-center">
-              <p className="text-sm text-slate-500">No customers yet.</p>
-              <p className="text-sm text-slate-400 mt-1">Use Add customer to create one.</p>
+              <p className="text-sm text-slate-500">{isOwner ? "No customers yet." : "No customers are assigned to your work yet."}</p>
+              {isOwner && <p className="text-sm text-slate-400 mt-1">Use Add customer to create one.</p>}
             </div>
           ) : (
             <ul className="divide-y divide-slate-100">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { UserAuth } from '../context/AuthContext';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { getCustomerById, updateCustomer, deleteCustomer } from '../services/customerService';
 import { getPropertiesByCustomer, createProperty } from '../services/propertyService';
@@ -13,6 +14,8 @@ import NotesSection from '../components/NotesSection';
 const CustomerDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { role } = UserAuth();
+  const isOwner = role === 'OWNER';
  
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -355,7 +358,7 @@ const CustomerDetails = () => {
               </div>
             </div>
  
-            {!isEditing && (
+            {isOwner && !isEditing && (
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={startEditing}
@@ -463,7 +466,7 @@ const CustomerDetails = () => {
                 <span className="text-slate-400 font-normal">({properties.length})</span>
               )}
             </h2>
-            <button
+            {isOwner && <button
               onClick={() => setShowAddProperty((v) => !v)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
@@ -471,7 +474,7 @@ const CustomerDetails = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               {showAddProperty ? "Cancel" : "Add property"}
-            </button>
+            </button>}
           </div>
  
           {propertiesError && (
@@ -481,7 +484,7 @@ const CustomerDetails = () => {
           )}
  
           {/* Add property form */}
-          {showAddProperty && (
+          {isOwner && showAddProperty && (
             <div className="px-6 pt-5 pb-6 border-b border-slate-200 bg-slate-50">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
@@ -597,7 +600,7 @@ const CustomerDetails = () => {
                 <span className="text-slate-400 font-normal">({jobs.length})</span>
               )}
             </h2>
-            <button
+            {isOwner && <button
               onClick={() => setShowCreateJob((v) => !v)}
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
             >
@@ -605,7 +608,7 @@ const CustomerDetails = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               {showCreateJob ? "Cancel" : "Create job"}
-            </button>
+            </button>}
           </div>
 
           {jobsError && (
@@ -615,7 +618,7 @@ const CustomerDetails = () => {
           )}
 
           {/* Create job form */}
-          {showCreateJob && (
+          {isOwner && showCreateJob && (
             <div className="px-6 pt-5 pb-6 border-b border-slate-200 bg-slate-50">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
@@ -763,7 +766,7 @@ const CustomerDetails = () => {
         </section>
       </div>
  
-      {showDeleteConfirm && (
+      {isOwner && showDeleteConfirm && (
         <ConfirmDeleteModal
           title={`Delete ${customer.firstName} ${customer.lastName}?`}
           message="This can't be undone. This customer's record will be permanently removed."

@@ -1,5 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { createError } from "../middleware/errorHandler.js";
+import { assignedWorkWhere } from "../utils/assignedWork.js";
 
 const attachmentFields = ["customerId", "propertyId", "visitId"];
 
@@ -23,6 +24,37 @@ const findCompanyAttachment = async (companyId, field, id) => {
 
 const noteInclude = {
     author: { select: { id: true, firstName: true, lastName: true } },
+};
+
+const getTechnicianNoteScope = async (companyId, dbUserId) => {
+    const [customers, properties, visits] = await Promise.all([
+        prisma.customer.findMany({
+            where: { companyId, jobs: { some: assignedWorkWhere(dbUserId) } },
+            select: { id: true },
+        }),
+        prisma.property.findMany({
+            where: { companyId, jobs: { some: assignedWorkWhere(dbUserId) } },
+            select: { id: true },
+        }),
+        prisma.visit.findMany({
+            where: {
+                companyId,
+                OR: [
+                    { assignedTechId: dbUserId },
+                    { job: { is: { defaultTechId: dbUserId } } },
+                ],
+            },
+            select: { id: true },
+        }),
+    ]);
+
+    return {
+        OR: [
+            { customerId: { in: customers.map(({ id }) => id) } },
+            { propertyId: { in: properties.map(({ id }) => id) } },
+            { visitId: { in: visits.map(({ id }) => id) } },
+        ],
+    };
 };
 
 export const createNote = async (req, res, next) => {
@@ -62,11 +94,18 @@ export const createNote = async (req, res, next) => {
 
 export const getNotes = async (req, res, next) => {
     try {
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
         if (!companyId) return next(createError("Forbidden", 403));
 
+        const technicianScope = role === "TECH"
+            ? await getTechnicianNoteScope(companyId, dbUserId)
+            : {};
+
         const notes = await prisma.note.findMany({
-            where: { companyId, ...(role === "TECH" ? { ownerOnly: false } : {}) },
+            where: {
+                companyId,
+                ...(role === "TECH" ? { ownerOnly: false, ...technicianScope } : {}),
+            },
             include: noteInclude,
             orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
         });
@@ -79,14 +118,18 @@ export const getNotes = async (req, res, next) => {
 
 export const getNote = async (req, res, next) => {
     try {
-        const { companyId, role } = req.user;
+        const { companyId, role, dbUserId } = req.user;
         if (!companyId) return next(createError("Forbidden", 403));
+
+        const technicianScope = role === "TECH"
+            ? await getTechnicianNoteScope(companyId, dbUserId)
+            : {};
 
         const note = await prisma.note.findFirst({
             where: {
                 id: req.params.noteId,
                 companyId,
-                ...(role === "TECH" ? { ownerOnly: false } : {}),
+                ...(role === "TECH" ? { ownerOnly: false, ...technicianScope } : {}),
             },
             include: noteInclude,
         });

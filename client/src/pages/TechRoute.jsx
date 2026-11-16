@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react'
+import { Link } from 'react-router-dom';
 import { UserAuth } from '../context/AuthContext';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
@@ -314,7 +315,15 @@ const TechRoute = () => {
                             {stop.job.title}
                           </p>
                           <p className="text-sm text-slate-500 truncate">
-                            {stop.customer ? `${stop.customer.firstName} ${stop.customer.lastName}` : "—"} • {stop.property?.address || "—"}
+                            {stop.customer ? (
+                              <Link to={`/customers/${stop.customer.id}`} className="hover:text-indigo-600 hover:underline">
+                                {`${stop.customer.firstName} ${stop.customer.lastName || ''}`.trim()}
+                              </Link>
+                            ) : "—"} • {stop.property ? (
+                              <Link to={`/properties/${stop.property.id}`} className="hover:text-indigo-600 hover:underline">
+                                {stop.property.address}
+                              </Link>
+                            ) : "—"}
                           </p>
                         </div>
 
